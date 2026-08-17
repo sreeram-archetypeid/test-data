@@ -394,7 +394,7 @@ GCS  gs://<bucket>/arena-ff/read/v1/*.csv
             dim_run, fct_response, fct_response_option    ← the analysis contract
  │
  ▼
-30_marts    mart_banner_read, mart_verbatim_coded,
+30_marts    mart_banner_scale, mart_banner_multi, mart_verbatim_coded,
             mart_driver_features, mart_calibration
 ```
 
@@ -810,12 +810,19 @@ SELECT
   j.* EXCEPT(run_rank, run_count),
   (run_rank = 1) AS is_primary_run,
   run_count      AS n_runs_for_question,
-  -- box metrics, sentinel-aware
-  (SELECT MIN(o.option_code) FROM UNNEST(j.selected_options) o WHERE o.option_code < 90) AS primary_code,
-  d.scale_max
+  d.is_multi_select,
+  d.scale_max,
+  -- D3: a pick-list has no single ordered answer, so it has no primary_code.
+  -- For single-selects there is exactly one option, so MIN() just unwraps it;
+  -- the < 90 guard drops a respondent whose only pick was sentinel 99.
+  IF(d.is_multi_select, NULL,
+     (SELECT MIN(o.option_code) FROM UNNEST(j.selected_options) o WHERE o.option_code < 90)
+  ) AS primary_code
 FROM joined j
-LEFT JOIN (SELECT DISTINCT question_key, scale_max FROM `ff_20_curated.dim_question_option`) d
-  USING (question_key);
+LEFT JOIN (
+  SELECT DISTINCT question_key, is_multi_select, scale_max
+  FROM `ff_20_curated.dim_question_option`
+) d USING (question_key);
 ```
 
 Then the reusable metric view every banner and model binds to:
@@ -823,12 +830,40 @@ Then the reusable metric view every banner and model binds to:
 ```sql
 CREATE OR REPLACE VIEW `ff_20_curated.v_response_metrics` AS
 SELECT *,
-  primary_code = 1                                    AS is_tb,
-  primary_code IN (1, 2)                              AS is_t2b,
-  primary_code = scale_max                            AS is_bot,
-  primary_code IN (scale_max - 1, scale_max)          AS is_b2b
+  IF(is_multi_select, NULL, primary_code = 1)                       AS is_tb,
+  IF(is_multi_select, NULL, primary_code IN (1, 2))                 AS is_t2b,
+  IF(is_multi_select, NULL, primary_code = scale_max)               AS is_bot,
+  IF(is_multi_select, NULL, primary_code IN (scale_max - 1, scale_max)) AS is_b2b
 FROM `ff_20_curated.fct_response`;
 ```
+
+> **Why `NULL` and not `FALSE` for multi-selects.** `COUNTIF` and `AVG` skip nulls but count
+> falses. With `NULL`, a pick-list contributes nothing to a top-box aggregate and the
+> denominator shrinks to just the single-select rows — which is correct. With `FALSE`, the
+> 2,663 multi-select cells would sit in the denominator as "did not choose top box" and
+> understate every percentage they touch. Same reasoning applies to `AVG(primary_code)`:
+> `primary_code` is already `NULL` for multi-selects, so MEAN is safe by construction.
+
+### 7.4 `fct_response_option` — the exploded grain
+
+Multi-select incidence needs one row per *chosen option*, not per response. This is the table
+the pick-list questions are analysed from.
+
+```sql
+CREATE OR REPLACE TABLE `ff_20_curated.fct_response_option`
+CLUSTER BY modality, creative, meta AS
+SELECT
+  f.archetype_id, f.run_id, f.section_code, f.question_key, f.meta, f.question_text,
+  f.creative, f.cohort_code, f.modality, f.is_primary_run, f.is_multi_select,
+  o.option_position, o.option_code, o.option_label,
+  o.option_code >= 90 AS is_sentinel
+FROM `ff_20_curated.fct_response` f, UNNEST(f.selected_options) o;
+```
+
+**Gate 4b:** `fct_response_option` = **39,490** rows (one per chosen option, across all runs),
+of which **419** carry `is_sentinel`. These derive from **35,008** non-empty `selected` cells,
+**2,663** of which held more than one option. The remaining fact rows have no `selected` value
+— they are the type-1 open-ends.
 
 **Gate 4 — the big one:**
 
@@ -876,7 +911,12 @@ not hypotheticals.
 | `DQ08` | Every type-1 row has `qual_text` | `= 0` violations |
 | `DQ09` | Every type-4/5 row has ≥1 `selected_options` | `= 0` violations |
 | `DQ10` | `option_label` never retains a leading `\d+\.` | `= 0` (catches D2 regressions) |
-| `DQ11` | `scale_max` between 2 and 12 for all closed questions | `= 0` violations |
+| `DQ11` | `scale_max` between 1 and 8 for all **single-select** questions; `NULL` for all multi-selects | `= 0` violations |
+| `DQ11b` | **Sentinel parse:** rows where `option_code = 99` | `= 419` — if this reads `0`, D2 has regressed to reading position instead of code |
+| `DQ11c` | `option_position != option_code` | `= 419`, and all have `option_code = 99` |
+| `DQ11d` | Multi-select metas | exactly **9**: `SOCIAL`, `CHARDES`, `STORYDES`, `GENREFIT`, `ELEMENT2`, `AUD2`, `SEEWITH`, `PLATFORM`, `Screener 1` |
+| `DQ11e` | `is_tb` is `NULL` wherever `is_multi_select` | `= 0` violations (catches the FALSE-vs-NULL trap) |
+| `DQ11f` | `fct_response_option` row count | `= 39,490`; max options in one cell `= 7` (`SOCIAL`) |
 | `DQ12` | Verbatim count | `= 17,301` |
 | `DQ13` | Exactly one `is_primary_run` per (persona, question) | `= 0` violations |
 | `DQ14` | `income_high_usd >= income_low_usd` | `= 0` violations |
@@ -916,21 +956,17 @@ WHERE is_primary_run              -- REQUIRED: see 2.2
 GROUP BY archetype_id;
 ```
 
-Then the banner generator — one long/tidy table, pivoted at presentation time:
+Then the banner generator. **Two marts, not one** — scale questions and pick-lists produce
+different metrics (D3), and forcing them into one table is what produces meaningless
+"average of CHARDES" numbers.
+
+Define the cut list once so both marts stay aligned:
 
 ```sql
-CREATE OR REPLACE TABLE `ff_30_marts.mart_banner_read` AS
+CREATE OR REPLACE TABLE FUNCTION `ff_30_marts.tf_cuts`() AS
 SELECT
-  m.creative, m.meta, m.question_text, m.question_key,
-  cut.cut_name, cut.cut_value,
-  COUNT(*)                                             AS n,
-  SAFE_DIVIDE(COUNTIF(m.is_tb),  COUNT(*))             AS tb_pct,
-  SAFE_DIVIDE(COUNTIF(m.is_t2b), COUNT(*))             AS t2b_pct,
-  SAFE_DIVIDE(COUNTIF(m.is_b2b), COUNT(*))             AS b2b_pct,
-  SAFE_DIVIDE(COUNTIF(m.is_bot), COUNT(*))             AS bot_pct,
-  AVG(IF(m.primary_code < 90, m.primary_code, NULL))   AS mean_score
-FROM `ff_20_curated.v_response_metrics` m
-JOIN `ff_20_curated.dim_archetype` a USING (archetype_id)
+  a.archetype_id, cut.cut_name, cut.cut_value
+FROM `ff_20_curated.dim_archetype` a
 CROSS JOIN UNNEST([
   STRUCT('TOTAL'   AS cut_name, 'Total'                AS cut_value),
   STRUCT('GENDER',            a.gender_clean),
@@ -939,12 +975,88 @@ CROSS JOIN UNNEST([
   STRUCT('RELATIONSHIP',      a.archetype_marital_status),
   STRUCT('PARENT',            IF(a.is_parent, 'Parent', 'Non-parent'))
 ]) AS cut
+WHERE cut.cut_value IS NOT NULL;
+```
+
+**9a — scale questions (single-select): N / TB / T2B / B2B / BOT / MEAN**
+
+```sql
+CREATE OR REPLACE TABLE `ff_30_marts.mart_banner_scale` AS
+SELECT
+  m.creative, m.meta, m.question_text, m.question_key,
+  c.cut_name, c.cut_value,
+  COUNT(*)                                    AS n,
+  SAFE_DIVIDE(COUNTIF(m.is_tb),  COUNT(*))    AS tb_pct,
+  SAFE_DIVIDE(COUNTIF(m.is_t2b), COUNT(*))    AS t2b_pct,
+  SAFE_DIVIDE(COUNTIF(m.is_b2b), COUNT(*))    AS b2b_pct,
+  SAFE_DIVIDE(COUNTIF(m.is_bot), COUNT(*))    AS bot_pct,
+  AVG(m.primary_code)                         AS mean_score   -- already NULL-safe, see 7.3
+FROM `ff_20_curated.v_response_metrics` m
+JOIN `ff_30_marts.tf_cuts`() c USING (archetype_id)
 WHERE m.is_primary_run
+  AND NOT m.is_multi_select        -- pick-lists excluded; they go to 9b
+  AND m.primary_code IS NOT NULL   -- drops sentinel-only responses from the base
 GROUP BY 1,2,3,4,5,6;
 ```
 
+**9b — pick-lists (multi-select): N base + % selecting each option**
+
+The base is **respondents**, not option instances, so percentages sum to >100% by design —
+exactly what the banner plans annotate. Note the base counts every respondent who answered the
+question, including those who chose only `99 None of the above`; the sentinel then appears as
+its own row rather than being silently dropped.
+
+```sql
+CREATE OR REPLACE TABLE `ff_30_marts.mart_banner_multi` AS
+WITH base AS (      -- denominator: distinct respondents per question × cut
+  SELECT f.creative, f.question_key, c.cut_name, c.cut_value,
+         COUNT(DISTINCT f.archetype_id) AS n_base
+  FROM `ff_20_curated.fct_response` f
+  JOIN `ff_30_marts.tf_cuts`() c USING (archetype_id)
+  WHERE f.is_primary_run AND f.is_multi_select
+  GROUP BY 1,2,3,4
+),
+picks AS (          -- numerator: respondents choosing each option
+  SELECT o.creative, o.question_key, o.meta, o.question_text,
+         c.cut_name, c.cut_value, o.option_code, o.option_label, o.is_sentinel,
+         COUNT(DISTINCT o.archetype_id) AS n_picked
+  FROM `ff_20_curated.fct_response_option` o
+  JOIN `ff_30_marts.tf_cuts`() c USING (archetype_id)
+  WHERE o.is_primary_run AND o.is_multi_select
+  GROUP BY 1,2,3,4,5,6,7,8,9
+)
+SELECT
+  p.creative, p.meta, p.question_text, p.question_key,
+  p.cut_name, p.cut_value,
+  b.n_base, p.option_code, p.option_label, p.is_sentinel,
+  p.n_picked,
+  SAFE_DIVIDE(p.n_picked, b.n_base) AS pct_selecting   -- sums >100% across options
+FROM picks p
+JOIN base b USING (creative, question_key, cut_name, cut_value);
+```
+
+**Validation for 9b:** on the `TOTAL` cut, `SUM(pct_selecting)` per question must equal the
+mean options-per-cell measured from source. These are the targets:
+
+| meta | mean options/cell | meta | mean options/cell |
+|---|---:|---|---:|
+| `SOCIAL` | 3.10 | `AUD2` | 2.17 |
+| `GENREFIT` | 3.05 | `ELEMENT2` | 1.94 |
+| `STORYDES` | 3.00 | `PLATFORM` | 1.59 |
+| `CHARDES` | 2.97 | `SEEWITH` | 1.44 |
+| | | `Screener 1` | 1.01 |
+
+If any of these lands at exactly 1.00 the explode collapsed and `fct_response_option` needs
+re-checking. `Screener 1` is the exception to watch — at 1.01 it is multi-select in principle
+but almost never used that way (only 4 of 596 cells have 2 picks), so it will *look* like a
+single-select. Do not "fix" it by reclassifying: 419 of its values are sentinel 99, and moving
+it to the 9a mart would feed those into `scale_max`.
+
 Add significance testing (the banner plans imply stat-testing between cuts) with a two-proportion
-z-test in SQL, or in **BigQuery DataFrames** where it reads far more naturally.
+z-test in SQL, or in **BigQuery DataFrames** where it reads far more naturally. Apply it to
+`tb_pct`/`t2b_pct` in 9a and to `pct_selecting` in 9b — the test is the same, but in 9b each
+option is an independent proportion, so no multiple-comparison correction across options within
+a question unless you are making a family-wise claim.
 
 > **Verbatim rows:** the banner plans mark 8 rows as `OE — verbatims not tabulated here`.
 > Those are exactly the type-1 questions, and Section 10 is where they finally get tabulated —
@@ -1192,7 +1304,7 @@ SELECT
   SAFE_DIVIDE(s.tb_pct - h.value, NULLIF(h.value, 0)) AS rel_delta
 FROM `ff_00_raw.raw_wtabs_pcnt` h
 JOIN `ff_20_curated.dim_wtab_crosswalk` x ON h.question_label = x.wtab_label
-JOIN `ff_30_marts.mart_banner_read`     s ON s.question_key = x.question_key
+JOIN `ff_30_marts.mart_banner_scale`    s ON s.question_key = x.question_key
                                          AND s.cut_name = 'TOTAL';
 ```
 
@@ -1250,14 +1362,19 @@ any time; Gates 1–4 will catch any drift.
 - [ ] Write `tools/gen_unpivot.py`, generate the three UNPIVOT statements
 - [ ] Build `stg_response_s21/s22/s23` → `stg_response`
 - [ ] Build `dim_archetype` — **Gate 2:** 398 rows, no null `age_band_banner`/`creative`
-- [ ] Build `dim_question`, `dim_question_option` — **Gate 3:** 91 / 36
+- [ ] Build `dim_run` — **Gate 2b:** 12 rows, `SUM(n_rows)` = 1,392
+- [ ] Build `dim_question`, `dim_question_option` — **Gate 3:** 91 / 36, 9 multi-select metas
 - [ ] Build `fct_response` + `v_response_metrics` — **Gate 4:** 40,178 rows
-- [ ] Implement DQ01–DQ14; all green
+- [ ] Build `fct_response_option` — **Gate 4b:** 39,490 rows, 419 sentinels
+- [ ] Implement DQ01–DQ16 (incl. DQ11b–f); all green
 
 **Phase 3 — Banners (1–2 days)**
-- [ ] `dim_archetype_cuts`
-- [ ] `mart_banner_read`
-- [ ] Spot-check ≥5 cells against `FF_READ_G_BannerPlan` by hand
+- [ ] `dim_archetype_cuts`, `tf_cuts()`
+- [ ] `mart_banner_scale` (single-select: N/TB/T2B/B2B/BOT/MEAN)
+- [ ] `mart_banner_multi` (pick-lists: % selecting each option)
+- [ ] Verify 9b sums against the mean options/cell table (SOCIAL 3.10 … Screener 1 1.01)
+- [ ] Spot-check ≥5 cells against `FF_READ_G_BannerPlan` by hand — include at least one
+      multi-select row (the `(multi-select: percentages can sum >100%)` rows)
 - [ ] Run the D4 sensitivity check (with/without the 81 imputed-age rows)
 - [ ] Add two-proportion z-tests
 

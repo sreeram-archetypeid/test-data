@@ -204,16 +204,154 @@ wrong BOT/B2B on the 4-point and 6-point items. See `dim_question_option` (Secti
 | # | Issue | Evidence | Handling |
 |---|---|---|---|
 | **D1** | **Embedded newlines in verbatims** | 8,957 fields contain `\n`. One 100-record file spans 501 physical lines. | `--allow_quoted_newlines` on load. **Mandatory** — without it every file shreds into garbage rows. |
-| **D2** | **Doubled option-code prefix** | 34,594 values look like `1. 1. Increases my interest`; 414 look like `1. label` | Single regex handles both: `^\s*\d+\.\s*(\d+\.\s*)?` |
-| **D3** | **Multi-select packed into one string** | Pipe-delimited: `2. 2. PC (Steam, GOG Galaxy)\|4. 4. Console (Xbox, Nintendo Switch)` | `SPLIT(selected, '\|')` → `ARRAY<STRUCT<code, label>>` |
+| **D2** | **Prefix is `position. code. label`, not a doubled code** | 39,071 of 39,490 have position = code (so it *looks* doubled); **419 diverge** — e.g. `6. 99. None of the above` | Take the **second** number as `option_code`, falling back to the first. See D2 detail |
+| **D3** | **Multi-select packed into one string** | Pipe-delimited: `2. 2. PC (Steam, GOG Galaxy)\|4. 4. Console (Xbox, Nintendo Switch)`. 9 metas, 2,663 cells, up to 7 options | `SPLIT(selected, '\|')` → `ARRAY<STRUCT<code, label>>`. **Multi-selects must not receive TB/T2B/MEAN.** See D3 detail |
 | **D4** | **`archetype_age_range` is inconsistent** | 31 distinct values. Buckets (`30-34`), bare ages (`15`, `24`), and hybrids (`21 (17-24)`) all coexist | See D4 detail below |
 | **D5** | **`archetype_gender` case drift** | `Male` (828), `Female` (560), `MALE` (4) | `INITCAP(TRIM(...))` |
 | **D6** | **`archetype_income_range` mixed format** | Points with trailing space (`'$95,000 '`) *and* ranges (`'$65,000 - $75,000'`) | Parse to `income_low_usd` / `income_high_usd`; point ⇒ low = high |
 | **D7** | **Curly apostrophes** | `Don’t really like…` (U+2019) | Preserve raw; normalise only in a derived `*_norm` grouping key |
 | **D8** | **Filenames hostile to GCS** | Em-dash + spaces: `3-ARENA-FF-G-gr1-2.2 — Results-c.csv` | Rename to slugs on upload (Section 5.1) |
-| **D9** | **Sentinel codes in scales** | `99. None of the above`, `98. Other` | Exclude from MEAN / BOT / B2B / `scale_max` |
+| **D9** | **Sentinel code 99 present** | 419 instances of code `99 None of the above` — `Screener 1` (411), `PLATFORM` (5), `SOCIAL` (3). No code `98` in the data. Only visible once D2 is parsed correctly | Exclude codes ≥ 90 from MEAN / BOT / B2B / `scale_max` |
 | **D10** | **No BOM** | Verified across all 12 files | No action — noted so nobody "fixes" it |
 | **D11** | **`archetype_nps_score` is a string** | Values `3`–`10`, no 0–2 present | `SAFE_CAST` to INT64; NPS band derived |
+
+### D2 detail — the prefix is `position. code. label`
+
+Almost every `selected` value carries two numeric prefixes:
+
+```
+1. 1. Increases my interest
+↑  ↑  └── option label
+│  └───── option code   (the punched value)
+└──────── list position (where it appeared on screen)
+```
+
+It is tempting to read this as a duplicated code and grab the first number. **That is wrong**,
+and it fails silently. In 39,071 of 39,490 option instances the two numbers happen to be equal,
+which is why the doubling looks like an export artefact. In **419 instances they diverge** —
+every one of them a "None of the above":
+
+| meta | position | code | label | instances |
+|---|---:|---:|---|---:|
+| `Screener 1` | 9 | **99** | None of the above | 411 |
+| `PLATFORM` | 6 | **99** | None of the above | 5 |
+| `SOCIAL` | 17 | **99** | None of the above | 3 |
+
+Reading the first number gives `option_code = 9`, `6`, `17` — three valid-looking scale
+positions instead of a sentinel. Those 419 responses would then be swept into MEAN, into
+`scale_max`, and (for `PLATFORM`, whose real scale max is 5) would push `scale_max` to 6 and
+corrupt BOT/B2B for **every** `PLATFORM` response, not just the sentinel ones.
+
+**Correct rule:** the option code is the **second** number when two are present, otherwise the
+first.
+
+```sql
+COALESCE(
+  SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*\d+\.\s*(\d+)\.') AS INT64),  -- 'pos. code. label'
+  SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.')         AS INT64)   -- 'code. label'
+) AS option_code
+```
+
+Keep the position too — it is the questionnaire's display order and is occasionally useful for
+reproducing banner row order:
+
+```sql
+SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.') AS INT64) AS option_position
+```
+
+**Single-prefix values** (`code. label`, no position) total 1,635 and are concentrated in
+`STORYDES`, which is single-prefix for **all** 1,195 of its values. The rest are scattered
+stragglers (`ACTIVITIES` 5, `GFAN1` 8, `SOCIAL` 7, `PLATFORM` 5, `GENREFIT` 2, `PARENT1` 1) —
+i.e. the export is *inconsistent within the same question*, so the parser must handle both
+forms per-value rather than per-question. `Screener 1` is the clearest case: 189 doubled and
+411 single-prefix values in the same column.
+
+> **Over-stripping check:** a naive strip could eat real content if a label itself began with
+> `<digits>.` (e.g. a label `1.5 hours` after a `1.` prefix). Verified across all 39,490
+> instances: **zero** cases where stripping the prefix leaves a leading digit fragment. The
+> regex is safe on this dataset — re-run the check when AUDIO/VIDEO land.
+
+### D3 detail — multi-select packed into one string
+
+**What the raw value looks like.** For "select all that apply" questions the export does not
+create one column per option. It concatenates every chosen option into the single
+`Q{n}_selected` cell, joined by a pipe, each with its own `position. code. label` prefix:
+
+```
+SOCIAL   →  2. 2. YouTube|4. 4. X (formerly Twitter)|8. 8. Reddit|13. 13. Discord
+PLATFORM →  2. 2. PC (Steam, GOG Galaxy)|4. 4. Console (Xbox, Nintendo Switch)
+STORYDES →  1. Action-packed|10. Great battle/fighting sequences|20. Feels authentic…
+```
+
+Left as-is, that string is useless analytically: `WHERE selected = '2. 2. YouTube'` misses
+every respondent who picked YouTube *and* anything else, and there are 624 distinct raw
+strings standing in for what is really ~130 options.
+
+**Scale of it.** 35,008 non-empty `selected` cells → 39,490 option instances after splitting.
+2,663 cells (**7.6%**) hold more than one option. Nine metas are multi-select:
+
+| meta | max options chosen | distribution of options-per-cell |
+|---|---:|---|
+| `SOCIAL` | 7 | 1:22 · 2:122 · 3:113 · 4:89 · 5:42 · 6:9 · 7:1 |
+| `CHARDES` | 6 | 2:70 · 3:280 · 4:41 · 5:4 · 6:3 |
+| `STORYDES` | 5 | 1:1 · 2:62 · 3:281 · 4:43 · 5:11 |
+| `GENREFIT` | 4 | 2:24 · 3:330 · 4:44 |
+| `ELEMENT2` | 4 | 1:79 · 2:267 · 3:49 · 4:3 |
+| `AUD2` | 4 | 1:14 · 2:306 · 3:75 · 4:3 |
+| `SEEWITH` | 4 | 1:233 · 2:156 · 3:8 · 4:1 |
+| `PLATFORM` | 3 | 1:176 · 2:211 · 3:11 |
+| `Screener 1` | 2 | 1:592 · 2:4 |
+
+The other 18 metas (`POSTINT`, `GFAN1`, `VGFRAN1/2/3`, `ACTIVITIES`, `URG1`, `VIABLE1/2`, …)
+are always exactly one option. Note this is **not** the same split as `Q_type`: type 5 means
+"select + verbatim follow-up", which is orthogonal to single-vs-multi. Derive
+`is_multi_select` from the observed data (`MAX(ARRAY_LENGTH(selected_options)) > 1` per
+`question_key`), not from `q_type`.
+
+**Is splitting on `|` actually safe?** Yes, and this was verified rather than assumed. If any
+option label contained a literal pipe, splitting would produce a fragment with no
+`<digits>.` prefix. Across all **39,490** split parts, the number lacking a code prefix is
+**0**. Additionally, no cell contains the same option code twice. The pipe is a clean
+delimiter on this dataset.
+
+**Target shape.** Explode into a repeated field so each chosen option is addressable:
+
+```sql
+ARRAY(
+  SELECT AS STRUCT
+    SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.') AS INT64) AS option_position,
+    COALESCE(
+      SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*\d+\.\s*(\d+)\.') AS INT64),
+      SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.')         AS INT64)
+    ) AS option_code,
+    TRIM(REGEXP_REPLACE(opt, r'^\s*\d+\.\s*(\d+\.\s*)?', '')) AS option_label
+  FROM UNNEST(SPLIT(COALESCE(selected, ''), '|')) AS opt
+  WHERE TRIM(opt) != ''
+) AS selected_options
+```
+
+Now "how many picked Discord" is `WHERE o.option_label = 'Discord'` after an `UNNEST`,
+regardless of what else they picked.
+
+**The consequence that matters most: multi-selects must not receive box metrics.**
+
+Top-box, T2B, B2B, BOT and MEAN all assume a single ordered response on a ranked scale. A
+multi-select has neither — `CHARDES` ("which words describe the character") has 19 unranked
+options and a respondent picks 3. Averaging those codes produces a number with no meaning,
+and `scale_max` is not a scale bound but just the length of a pick-list.
+
+The banner plans already say this: 9 rows are annotated
+`(multi-select: percentages can sum >100%)`. The correct metric is **per-option incidence** —
+% of base selecting each option, summing to >100%.
+
+This is why `dim_question_option` (§6.3) carries `is_multi_select`, why `scale_max` is `NULL`
+for multi-selects, and why `v_response_metrics` (§7.3) returns `NULL` rather than `FALSE` for
+`is_tb`/`is_t2b`/`is_bot`/`is_b2b` on those questions. `NULL` is deliberate — `COUNTIF` skips
+nulls, so a multi-select silently contributes nothing to a top-box aggregate, whereas `FALSE`
+would inflate the denominator and quietly understate every percentage.
+
+Watch for the pick-list metas with large code ranges — `STORYDES` (20), `CHARDES` (19),
+`SOCIAL` (15), `ELEMENT2` (14). Those are the ones a scale-oriented query would mangle worst.
 
 ### D4 detail — age normalisation
 
@@ -541,22 +679,35 @@ SELECT
   END AS question_kind
 FROM (SELECT DISTINCT meta, question_text, q_type FROM `ff_10_staging.stg_response`);
 
--- option universe + per-question scale_max, excluding sentinels (D9)
+-- option universe, multi-select flag, and scale_max (single-select only, sentinels excluded)
 CREATE OR REPLACE TABLE `ff_20_curated.dim_question_option` AS
-WITH opts AS (
-  SELECT DISTINCT r.question_key, o.option_code, o.option_label
+WITH multi AS (          -- D3: derive from data, NOT from q_type
+  SELECT question_key,
+         MAX(ARRAY_LENGTH(selected_options)) > 1 AS is_multi_select
+  FROM `ff_10_staging.stg_response`
+  GROUP BY question_key
+),
+opts AS (
+  SELECT DISTINCT r.question_key, o.option_code, o.option_position, o.option_label
   FROM `ff_10_staging.stg_response` r, UNNEST(r.selected_options) o
   WHERE o.option_code IS NOT NULL
 )
 SELECT
-  question_key, option_code, option_label,
-  option_code >= 90 AS is_sentinel,
-  MAX(IF(option_code >= 90, NULL, option_code))
-    OVER (PARTITION BY question_key) AS scale_max
-FROM opts;
+  o.question_key, o.option_code, o.option_position, o.option_label,
+  o.option_code >= 90 AS is_sentinel,
+  m.is_multi_select,
+  -- scale_max is meaningless for a pick-list; leave it NULL so box metrics can't be computed
+  IF(m.is_multi_select, NULL,
+     MAX(IF(o.option_code >= 90, NULL, o.option_code))
+       OVER (PARTITION BY o.question_key)) AS scale_max
+FROM opts o
+JOIN multi m USING (question_key);
 ```
 
 **Gate 3:** `dim_question` = **91** rows, **36** distinct `meta`.
+`dim_question_option` must show **9** multi-select metas (`SOCIAL`, `CHARDES`, `STORYDES`,
+`GENREFIT`, `ELEMENT2`, `AUD2`, `SEEWITH`, `PLATFORM`, `Screener 1`) and **419** sentinel
+instances at code 99.
 
 ---
 
@@ -616,10 +767,14 @@ SELECT
   SAFE_CAST(NULLIF(TRIM(rating), '') AS INT64) AS rating_value,
 
   NULLIF(selected, '') AS selected_raw,
-  -- D2 + D3: split multi-select, strip single OR doubled code prefix
+  -- D3: split on '|'  +  D2: prefix is 'position. code. label' (code = 2nd number if present)
   ARRAY(
     SELECT AS STRUCT
-      SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.') AS INT64) AS option_code,
+      SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.') AS INT64) AS option_position,
+      COALESCE(
+        SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*\d+\.\s*(\d+)\.') AS INT64),
+        SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.')         AS INT64)
+      ) AS option_code,
       TRIM(REGEXP_REPLACE(opt, r'^\s*\d+\.\s*(\d+\.\s*)?', '')) AS option_label
     FROM UNNEST(SPLIT(COALESCE(selected, ''), '|')) AS opt
     WHERE TRIM(opt) != ''

@@ -103,6 +103,64 @@ read_s_gr2_s2_1x   read_s_gr2_s2_2   read_s_gr2_s2_3
 
 **Get this right before uploading** — fixing it later means re-uploading.
 
+### F5 — the doubled numeric prefix is `position. code.`, not a duplicated code
+
+The doc's D2 describes values like `1. 1. Increases my interest` as a "doubled
+option-code prefix" and strips both numbers, taking `option_code` from the
+**first**. Measured across all 39,490 option tokens:
+
+| Form | Count |
+|---|---:|
+| two prefixes, both numbers equal | 38,275 |
+| one prefix | 1,215 |
+| **two prefixes, numbers differ** | **419** |
+
+They coincide 97% of the time, which is why this reads as duplication. But in
+**every one** of the 419 disagreements the second number is `99`:
+
+| Token | Count |
+|---|---:|
+| `9. 99. None of the above` | 411 |
+| `6. 99. None of the above` | 5 |
+| `17. 99. None of the above` | 3 |
+
+So the first number is the option's **position in the displayed list** and the
+second is its **coded value**. `99` is the D9 sentinel — and reading the first
+number means the sentinel is never recognised as one:
+
+| Question | `scale_max` reading first | correct |
+|---|---:|---:|
+| `Screener 1` | 9 | **8** |
+| `PLATFORM` | 6 | **5** |
+| `SOCIAL` | 17 | **15** |
+
+On those three questions that inflates `scale_max`, so **BOT and B2B are wrong**
+and the sentinel is averaged into `MEAN` as if it were a scale point.
+
+**Fix:** `option_code` is the **last** numeric prefix, `option_position` the
+first. RE2 has no backreferences, so it is done with a COALESCE of two patterns
+rather than a repeated-group match:
+
+```sql
+SAFE_CAST(REGEXP_EXTRACT(opt, r'^\s*(\d+)\.') AS INT64)        AS option_position,
+SAFE_CAST(COALESCE(
+  REGEXP_EXTRACT(opt, r'^\s*\d+\.\s*(\d+)\.'),   -- doubled: the real code
+  REGEXP_EXTRACT(opt, r'^\s*(\d+)\.')            -- single:  the only number
+) AS INT64)                                                    AS option_code,
+```
+
+Label stripping was never wrong — `^\s*\d+\.\s*(\d+\.\s*)?` is kept as-is.
+
+**Regression guard:** the staging gate asserts `sentinel tokens >= 90` is
+exactly **419**. If that returns 0, the code is being read from the position
+prefix again.
+
+Two related facts worth recording, both measured with the corrected code:
+
+- Only **3 of 80** closed questions have a sentinel in their option universe.
+- The 71 single-select ordinal questions have `scale_max` ∈ {1, 2, 3, 4, 6} —
+  confirming there is genuinely **no 5-point scale anywhere** in the study.
+
 ### Deferred — box metrics on non-ordinal questions
 
 Implemented as the doc specifies. Recorded here so it is not lost. Of the 80

@@ -161,6 +161,54 @@ Two related facts worth recording, both measured with the corrected code:
 - The 71 single-select ordinal questions have `scale_max` ∈ {1, 2, 3, 4, 6} —
   confirming there is genuinely **no 5-point scale anywhere** in the study.
 
+### F6 — income has eight shapes, not two
+
+D6 describes only points (`'$95,000 '`) and ranges (`'$65,000 - $75,000'`).
+Measured over 398 personas there are **eight**:
+
+| Shape | Personas |
+|---|---:|
+| `$N,N ` | 181 |
+| `$N,N - $N,N` | 154 |
+| `$N,N Household Income` | 33 |
+| `$N,N (Household)` | 12 |
+| **`Household Income: $N,N`** | **8** |
+| `$N,N - $N,N+` | 7 |
+| `$N,N+` | 2 |
+| `$N,N (Household Income)` | 1 |
+
+The doc's regex is anchored at `^\$`, so the 8 `Household Income: $N,N` personas
+get **NULL income** — they would silently drop out of every income banner cut.
+
+**Fix:** drop the anchor and take the first dollar amount anywhere in the
+string. Verified to handle all eight shapes with zero DQ14 violations:
+
+```sql
+-- first amount anywhere, not anchored
+SAFE_CAST(REPLACE(REGEXP_EXTRACT(archetype_income_range, r'\$([\d,]+)'), ',', '') AS INT64)
+  AS income_low_usd,
+-- second amount only exists in range forms
+COALESCE(income_second_usd, income_first_usd) AS income_high_usd,
+REGEXP_CONTAINS(archetype_income_range, r'\+') AS income_is_open_ended,
+```
+
+The `+` suffix (9 personas) is captured as `income_is_open_ended` rather than
+being flattened to `low = high`, which would understate those households.
+
+### A note on grain, since it caused F2 and recurs in D5
+
+Several counts in the plan doc are **row-occurrences across the 12 wide files**,
+not persona counts — each persona appears in 3–4 files. At `dim_archetype`
+grain:
+
+| Doc says | Actual (398 personas) |
+|---|---|
+| `MALE` case drift: 4 | **1** persona |
+| Imputed `17-24`: 81 | **22** personas |
+| Bare/hybrid ages: ~221 | **73** personas |
+
+When a doc figure and a gate disagree, check the grain first.
+
 ### Deferred — box metrics on non-ordinal questions
 
 Implemented as the doc specifies. Recorded here so it is not lost. Of the 80

@@ -1,0 +1,32 @@
+-- Section 2.1: 20 question blocks -> 20 fact rows per source row.
+CREATE OR REPLACE TABLE `ff_10_staging.stg_response_s21` AS
+SELECT
+  archetype_id,
+  LOWER(REGEXP_EXTRACT(_source_file, r'([^/]+)\.csv$')) AS run_id,
+  q_idx, question_text, meta, q_type, rating_label, rating, selected, qual
+FROM `ff_00_raw.raw_read_s21`
+UNPIVOT (
+  (question_text, meta, q_type, rating_label, rating, selected, qual)
+  FOR q_idx IN (
+    (Q1_question, Q1_meta, Q1_type, Q1_rating_label, Q1_rating, Q1_selected, Q1_qual) AS 1,
+    (Q2_question, Q2_meta, Q2_type, Q2_rating_label, Q2_rating, Q2_selected, Q2_qual) AS 2,
+    (Q3_question, Q3_meta, Q3_type, Q3_rating_label, Q3_rating, Q3_selected, Q3_qual) AS 3,
+    (Q4_question, Q4_meta, Q4_type, Q4_rating_label, Q4_rating, Q4_selected, Q4_qual) AS 4,
+    (Q5_question, Q5_meta, Q5_type, Q5_rating_label, Q5_rating, Q5_selected, Q5_qual) AS 5,
+    (Q6_question, Q6_meta, Q6_type, Q6_rating_label, Q6_rating, Q6_selected, Q6_qual) AS 6,
+    (Q7_question, Q7_meta, Q7_type, Q7_rating_label, Q7_rating, Q7_selected, Q7_qual) AS 7,
+    (Q8_question, Q8_meta, Q8_type, Q8_rating_label, Q8_rating, Q8_selected, Q8_qual) AS 8,
+    (Q9_question, Q9_meta, Q9_type, Q9_rating_label, Q9_rating, Q9_selected, Q9_qual) AS 9,
+    (Q10_question, Q10_meta, Q10_type, Q10_rating_label, Q10_rating, Q10_selected, Q10_qual) AS 10,
+    (Q11_question, Q11_meta, Q11_type, Q11_rating_label, Q11_rating, Q11_selected, Q11_qual) AS 11,
+    (Q12_question, Q12_meta, Q12_type, Q12_rating_label, Q12_rating, Q12_selected, Q12_qual) AS 12,
+    (Q13_question, Q13_meta, Q13_type, Q13_rating_label, Q13_rating, Q13_selected, Q13_qual) AS 13,
+    (Q14_question, Q14_meta, Q14_type, Q14_rating_label, Q14_rating, Q14_selected, Q14_qual) AS 14,
+    (Q15_question, Q15_meta, Q15_type, Q15_rating_label, Q15_rating, Q15_selected, Q15_qual) AS 15,
+    (Q16_question, Q16_meta, Q16_type, Q16_rating_label, Q16_rating, Q16_selected, Q16_qual) AS 16,
+    (Q17_question, Q17_meta, Q17_type, Q17_rating_label, Q17_rating, Q17_selected, Q17_qual) AS 17,
+    (Q18_question, Q18_meta, Q18_type, Q18_rating_label, Q18_rating, Q18_selected, Q18_qual) AS 18,
+    (Q19_question, Q19_meta, Q19_type, Q19_rating_label, Q19_rating, Q19_selected, Q19_qual) AS 19,
+    (Q20_question, Q20_meta, Q20_type, Q20_rating_label, Q20_rating, Q20_selected, Q20_qual) AS 20
+  )
+);

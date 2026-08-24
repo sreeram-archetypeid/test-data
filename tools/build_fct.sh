@@ -7,6 +7,10 @@
 # reading them here would couple this gate to a later step. The gated counts
 # are asserted in tools/build_metric_model.sh.
 #
+# G4-16/17 use the F8-corrected battery scale_max (6,967 / 13,245). Before that
+# fix they were 7,573 / 14,085, which counted 606 and 840 rows as bottom box on
+# questions whose offered scale was longer than the codes respondents used.
+#
 # Gate 4 is the real finish line for the shaping half of Phase 1. Every value
 # below was computed directly from the 12 source CSVs before this SQL was
 # written, so a mismatch is a pipeline bug and never a wrong expectation.
@@ -105,8 +109,8 @@ FROM UNNEST([
   -- ungated primary_code rules (the gated flags are checked in build_metric_model.sh)
   STRUCT('G4-14 primary_code = 1',        (SELECT COUNTIF(primary_code = 1) FROM f),                                                       13451),
   STRUCT('G4-15 primary_code IN (1,2)',   (SELECT COUNTIF(primary_code IN (1, 2)) FROM f),                                                  22475),
-  STRUCT('G4-16 primary_code = scale_max',(SELECT COUNTIF(primary_code = scale_max) FROM f),                                                 7573),
-  STRUCT('G4-17 primary_code IN (max-1,max)', (SELECT COUNTIF(primary_code IN (scale_max - 1, scale_max)) FROM f),                          14085),
+  STRUCT('G4-16 primary_code = scale_max',(SELECT COUNTIF(primary_code = scale_max) FROM f),                                                 6967),
+  STRUCT('G4-17 primary_code IN (max-1,max)', (SELECT COUNTIF(primary_code IN (scale_max - 1, scale_max)) FROM f),                          13245),
   -- primary-run logic actually works: POSTINT is once per persona
   STRUCT('G4-18 POSTINT primary rows',    (SELECT COUNTIF(is_primary_run AND meta = 'POSTINT') FROM f),                                         398)
 ])

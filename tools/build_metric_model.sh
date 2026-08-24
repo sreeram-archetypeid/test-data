@@ -15,6 +15,12 @@
 # were being counted as top box on questions where the phrase has no meaning.
 # They are now NULL rather than wrong.
 #
+# This step also carries the F8 fix: dim_question_option now derives scale_max
+# from the BATTERY maximum (max non-sentinel code across the meta) rather than
+# the codes respondents used. That corrects 8 questions and drops is_bot
+# 6,566 -> 5,960 and is_b2b 12,840 -> 12,000. is_tb and is_t2b are unchanged,
+# so every TOP BOX cut was always right.
+#
 # fct_response_option is the grain those 9 questions actually need: one row per
 # selected option, so "what share said Terry Bogard is 'determined'" becomes
 # answerable. The plan doc names this table in its architecture and never
@@ -43,7 +49,14 @@ fi
 : "${DS_CUR:?DS_CUR resolved empty}"
 
 # Order matters: dim_question must carry metric_kind before the view reads it.
-SCRIPTS=(22_dim_question 32_fct_response_option 31_v_response_metrics)
+# Order is a real dependency chain, not a preference:
+#   23  dim_question_option   -- carries the F8 battery scale_max
+#   22  dim_question          -- carries metric_kind
+#   30  fct_response          -- READS scale_max from 23, so it must be rebuilt
+#                                after it or it keeps the stale value
+#   32  fct_response_option   -- unnests fct_response
+#   31  v_response_metrics    -- reads metric_kind from 22 and scale_max via 30
+SCRIPTS=(23_dim_question_option 22_dim_question 30_fct_response 32_fct_response_option 31_v_response_metrics)
 
 for s in "${SCRIPTS[@]}"; do
   [[ -f "sql/${s}.sql" ]] || { echo "ERROR: sql/${s}.sql not found." >&2; exit 1; }
@@ -88,6 +101,7 @@ WITH
 q  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.dim_question\`),
 m  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.v_response_metrics\`),
 o  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response_option\`),
+qo AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.dim_question_option\`),
 sc AS (SELECT DISTINCT question_key, scale_max FROM \`${PROJECT_ID}.${DS_CUR}.dim_question_option\`)
 SELECT check_name, actual, expected, (actual = expected) AS ok
 FROM UNNEST([
@@ -110,13 +124,18 @@ FROM UNNEST([
   STRUCT('G5-12 is_tb on non-ordinal',      (SELECT COUNTIF(metric_kind != 'ordinal_scale' AND is_tb IS NOT NULL) FROM m),                        0),
   STRUCT('G5-13 is_tb TRUE (gated)',        (SELECT COUNTIF(is_tb) FROM m),                                                                  11414),
   STRUCT('G5-14 is_t2b TRUE (gated)',       (SELECT COUNTIF(is_t2b) FROM m),                                                                 19509),
-  STRUCT('G5-15 is_bot TRUE (gated)',       (SELECT COUNTIF(is_bot) FROM m),                                                                  6566),
-  STRUCT('G5-16 is_b2b TRUE (gated)',       (SELECT COUNTIF(is_b2b) FROM m),                                                                 12840),
+  STRUCT('G5-15 is_bot TRUE (gated)',       (SELECT COUNTIF(is_bot) FROM m),                                                                  5960),
+  STRUCT('G5-16 is_b2b TRUE (gated)',       (SELECT COUNTIF(is_b2b) FROM m),                                                                 12000),
   -- fct_response_option
   STRUCT('G5-17 fct_response_option rows',  (SELECT COUNT(*) FROM o),                                                                        39490),
   STRUCT('G5-18 sentinel option rows',      (SELECT COUNTIF(is_sentinel) FROM o),                                                              419),
   STRUCT('G5-19 option_code NULL',          (SELECT COUNTIF(option_code IS NULL) FROM o),                                                        0),
-  STRUCT('G5-20 distinct personas in option',(SELECT COUNT(DISTINCT archetype_id) FROM o),                                                     398)
+  STRUCT('G5-20 distinct personas in option',(SELECT COUNT(DISTINCT archetype_id) FROM o),                                                     398),
+  -- F8: battery-level scale_max
+  STRUCT('G5-21 dim_question_option rows',  (SELECT COUNT(*) FROM qo),                                                                        334),
+  STRUCT('G5-22 battery-corrected questions',(SELECT COUNT(DISTINCT question_key) FROM qo WHERE scale_max_source = 'battery'),                   8),
+  STRUCT('G5-23 scale_max below battery max',(SELECT COUNT(*) FROM qo WHERE scale_max < observed_max),                                           0),
+  STRUCT('G5-24 scale_max NULL',            (SELECT COUNTIF(scale_max IS NULL) FROM qo),                                                        0)
 ])
 ORDER BY check_name
 "

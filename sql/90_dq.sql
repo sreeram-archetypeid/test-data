@@ -1,4 +1,4 @@
--- Data-quality suite: DQ01-DQ24, appended to ff_30_marts.dq_results.
+-- Data-quality suite: DQ01-DQ26, appended to ff_30_marts.dq_results.
 --
 -- Every assertion here encodes a defect actually found in this data. They are
 -- regression tests, not hypotheticals -- and every threshold was measured from
@@ -26,6 +26,9 @@
 -- DQ20-DQ24 guard the Phase 1 close-out metric model. DQ22 is the important
 -- one: it fails if a box flag ever reappears on a question where option_code
 -- is a category id rather than a rank.
+--
+-- DQ25-DQ26 guard the F8 battery scale_max: 8 questions had their offered scale
+-- understated because it was derived from the codes respondents used.
 
 CREATE TABLE IF NOT EXISTS `${PROJECT_ID}.${DS_MART}.dq_results` (
   run_ts    TIMESTAMP,
@@ -90,7 +93,10 @@ checks AS (
     STRUCT('DQ23', 'sentinel rows in fct_response_option [F5 guard]',       (SELECT COUNTIF(is_sentinel) FROM fo),                                                         419),
     STRUCT('DQ24', 'ordinal question with scale_max outside {2,3,4,6}',     (SELECT COUNT(*) FROM q JOIN sc USING (question_key)
                                                                              WHERE q.metric_kind = 'ordinal_scale'
-                                                                               AND sc.scale_max NOT IN (2, 3, 4, 6)),                                                       0)
+                                                                               AND sc.scale_max NOT IN (2, 3, 4, 6)),                                                       0),
+    -- F8: battery-level scale_max
+    STRUCT('DQ25', 'questions with battery-corrected scale_max [F8]',       (SELECT COUNT(DISTINCT question_key) FROM o WHERE scale_max_source = 'battery'),                 8),
+    STRUCT('DQ26', 'scale_max below the observed max [F8 guard]',           (SELECT COUNT(*) FROM o WHERE scale_max < observed_max),                                         0)
   ])
 )
 SELECT

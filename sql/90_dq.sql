@@ -1,4 +1,4 @@
--- Data-quality suite: DQ01-DQ19, appended to ff_30_marts.dq_results.
+-- Data-quality suite: DQ01-DQ24, appended to ff_30_marts.dq_results.
 --
 -- Every assertion here encodes a defect actually found in this data. They are
 -- regression tests, not hypotheticals -- and every threshold was measured from
@@ -20,8 +20,12 @@
 --         6 legitimately are. Pinned at 6, and this row is the standing
 --         evidence for the deferred box-metric decision.
 --
--- DQ17-DQ19 are new guards for defects the doc did not know about: the
--- option-code prefix (F5) and the income regex (F6).
+-- DQ17-DQ19 guard defects the doc did not know about: the option-code prefix
+-- (F5) and the income regex (F6).
+--
+-- DQ20-DQ24 guard the Phase 1 close-out metric model. DQ22 is the important
+-- one: it fails if a box flag ever reappears on a question where option_code
+-- is a category id rather than a rank.
 
 CREATE TABLE IF NOT EXISTS `${PROJECT_ID}.${DS_MART}.dq_results` (
   run_ts    TIMESTAMP,
@@ -40,6 +44,10 @@ a AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_archetype`),
 r AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_run`),
 o AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`),
 tok AS (SELECT t.option_code, t.option_label FROM f, UNNEST(f.selected_options) AS t),
+q AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_question`),
+m AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.v_response_metrics`),
+fo AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.fct_response_option`),
+sc AS (SELECT DISTINCT question_key, scale_max FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`),
 checks AS (
   SELECT dq_id, assertion, actual, expected
   FROM UNNEST([
@@ -71,7 +79,18 @@ checks AS (
     STRUCT('DQ16b', 'dim_run sum of n_rows',                                (SELECT CAST(SUM(n_rows) AS INT64) FROM r),                                                   1392),
     STRUCT('DQ17', 'sentinel option tokens (code >= 90) [F5 guard]',        (SELECT COUNTIF(option_code >= 90) FROM tok),                                                  419),
     STRUCT('DQ18', 'sentinel leaked into primary_code [F5 guard]',          (SELECT COUNTIF(primary_code >= 90) FROM f),                                                     0),
-    STRUCT('DQ19', 'personas with NULL income_low_usd [F6 guard]',          (SELECT COUNTIF(income_low_usd IS NULL) FROM a),                                                 0)
+    STRUCT('DQ19', 'personas with NULL income_low_usd [F6 guard]',          (SELECT COUNTIF(income_low_usd IS NULL) FROM a),                                                 0),
+    -- Step 14: the metric model. DQ20-DQ24 guard the close-out fix.
+    STRUCT('DQ20a', 'questions classified ordinal_scale',                   (SELECT COUNTIF(metric_kind = 'ordinal_scale') FROM q),                                         69),
+    STRUCT('DQ20b', 'questions classified multi_select',                    (SELECT COUNTIF(metric_kind = 'multi_select') FROM q),                                           9),
+    STRUCT('DQ20c', 'questions classified single_option',                   (SELECT COUNTIF(metric_kind = 'single_option') FROM q),                                          2),
+    STRUCT('DQ20d', 'questions with NULL metric_kind',                      (SELECT COUNTIF(metric_kind IS NULL) FROM q),                                                    0),
+    STRUCT('DQ21', 'fct_response_option row count',                         (SELECT COUNT(*) FROM fo),                                                                  39490),
+    STRUCT('DQ22', 'box flags present on a non-ordinal question',           (SELECT COUNTIF(metric_kind != 'ordinal_scale' AND is_tb IS NOT NULL) FROM m),                   0),
+    STRUCT('DQ23', 'sentinel rows in fct_response_option [F5 guard]',       (SELECT COUNTIF(is_sentinel) FROM fo),                                                         419),
+    STRUCT('DQ24', 'ordinal question with scale_max outside {2,3,4,6}',     (SELECT COUNT(*) FROM q JOIN sc USING (question_key)
+                                                                             WHERE q.metric_kind = 'ordinal_scale'
+                                                                               AND sc.scale_max NOT IN (2, 3, 4, 6)),                                                       0)
   ])
 )
 SELECT

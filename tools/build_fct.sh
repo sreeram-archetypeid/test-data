@@ -2,6 +2,11 @@
 #
 # Build fct_response + v_response_metrics and check Gate 4.
 #
+# G4-14..17 assert the UNGATED primary_code rules on fct_response, not the
+# view: v_response_metrics gates its flags on metric_kind from Step 14, so
+# reading them here would couple this gate to a later step. The gated counts
+# are asserted in tools/build_metric_model.sh.
+#
 # Gate 4 is the real finish line for the shaping half of Phase 1. Every value
 # below was computed directly from the 12 source CSVs before this SQL was
 # written, so a mismatch is a pipeline bug and never a wrong expectation.
@@ -76,8 +81,7 @@ done
 
 checks_sql="
 WITH
-f AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response\`),
-m AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.v_response_metrics\`)
+f AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response\`)
 SELECT check_name, actual, expected, (actual = expected) AS ok
 FROM UNNEST([
   -- the six headline numbers
@@ -98,11 +102,11 @@ FROM UNNEST([
   STRUCT('G4-11 primary_code NULL',       (SELECT COUNTIF(primary_code IS NULL) FROM f),                                                      5587),
   STRUCT('G4-12 scale_max NULL',          (SELECT COUNTIF(scale_max IS NULL) FROM f),                                                         5170),
   STRUCT('G4-13 sentinel leaked into pc', (SELECT COUNTIF(primary_code >= 90) FROM f),                                                           0),
-  -- the metrics view
-  STRUCT('G4-14 is_tb TRUE',              (SELECT COUNTIF(is_tb) FROM m),                                                                    13451),
-  STRUCT('G4-15 is_t2b TRUE',             (SELECT COUNTIF(is_t2b) FROM m),                                                                   22475),
-  STRUCT('G4-16 is_bot TRUE',             (SELECT COUNTIF(is_bot) FROM m),                                                                    7573),
-  STRUCT('G4-17 is_b2b TRUE',             (SELECT COUNTIF(is_b2b) FROM m),                                                                   14085),
+  -- ungated primary_code rules (the gated flags are checked in build_metric_model.sh)
+  STRUCT('G4-14 primary_code = 1',        (SELECT COUNTIF(primary_code = 1) FROM f),                                                       13451),
+  STRUCT('G4-15 primary_code IN (1,2)',   (SELECT COUNTIF(primary_code IN (1, 2)) FROM f),                                                  22475),
+  STRUCT('G4-16 primary_code = scale_max',(SELECT COUNTIF(primary_code = scale_max) FROM f),                                                 7573),
+  STRUCT('G4-17 primary_code IN (max-1,max)', (SELECT COUNTIF(primary_code IN (scale_max - 1, scale_max)) FROM f),                          14085),
   -- primary-run logic actually works: POSTINT is once per persona
   STRUCT('G4-18 POSTINT primary rows',    (SELECT COUNTIF(is_primary_run AND meta = 'POSTINT') FROM f),                                         398)
 ])

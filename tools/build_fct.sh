@@ -11,6 +11,9 @@
 # fix they were 7,573 / 14,085, which counted 606 and 840 rows as bottom box on
 # questions whose offered scale was longer than the codes respondents used.
 #
+# Gate 6 (G6-*) checks the QRE base flag: 676 rows excluded at ROW grain, and
+# the rule table dim_qre_base must agree with the CASE that implements it.
+#
 # Gate 4 is the real finish line for the shaping half of Phase 1. Every value
 # below was computed directly from the 12 source CSVs before this SQL was
 # written, so a mismatch is a pipeline bug and never a wrong expectation.
@@ -43,7 +46,7 @@ fi
 : "${DS_STG:?DS_STG resolved empty}"
 : "${DS_CUR:?DS_CUR resolved empty}"
 
-SCRIPTS=(30_fct_response 31_v_response_metrics)
+SCRIPTS=(24_dim_qre_base 30_fct_response 31_v_response_metrics)
 
 for s in "${SCRIPTS[@]}"; do
   [[ -f "sql/${s}.sql" ]] || { echo "ERROR: sql/${s}.sql not found." >&2; exit 1; }
@@ -85,7 +88,8 @@ done
 
 checks_sql="
 WITH
-f AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response\`)
+f AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response\`),
+b AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.dim_qre_base\`)
 SELECT check_name, actual, expected, (actual = expected) AS ok
 FROM UNNEST([
   -- the six headline numbers
@@ -112,7 +116,28 @@ FROM UNNEST([
   STRUCT('G4-16 primary_code = scale_max',(SELECT COUNTIF(primary_code = scale_max) FROM f),                                                 6967),
   STRUCT('G4-17 primary_code IN (max-1,max)', (SELECT COUNTIF(primary_code IN (scale_max - 1, scale_max)) FROM f),                          13245),
   -- primary-run logic actually works: POSTINT is once per persona
-  STRUCT('G4-18 POSTINT primary rows',    (SELECT COUNTIF(is_primary_run AND meta = 'POSTINT') FROM f),                                         398)
+  STRUCT('G4-18 POSTINT primary rows',    (SELECT COUNTIF(is_primary_run AND meta = 'POSTINT') FROM f),                                         398),
+  -- Gate 6: the QRE base (F11). Row-grain, not persona-grain -- PARENT2 is in
+  -- section 2.1, whose personas carry two replicate runs.
+  STRUCT('G6-01 dim_qre_base rows',       (SELECT COUNT(*) FROM b),                                                                              9),
+  STRUCT('G6-02 is_in_qre_base NULL',     (SELECT COUNTIF(is_in_qre_base IS NULL) FROM f),                                                       0),
+  STRUCT('G6-03 excluded rows total',     (SELECT COUNTIF(NOT is_in_qre_base) FROM f),                                                         676),
+  STRUCT('G6-04 in-base rows total',      (SELECT COUNTIF(is_in_qre_base) FROM f),                                                            39502),
+  STRUCT('G6-05 ungated question excluded',(SELECT COUNTIF(NOT is_in_qre_base AND meta NOT IN
+                                             (SELECT meta FROM b)) FROM f),                                                                      0),
+  -- rule table and implementation must agree, per question
+  STRUCT('G6-06 rule/impl disagreement',  (SELECT COUNT(*) FROM (
+                                             SELECT b.meta FROM b JOIN (
+                                               SELECT meta, COUNTIF(NOT is_in_qre_base) AS excl FROM f GROUP BY meta
+                                             ) AS x USING (meta)
+                                             WHERE x.excl != b.expected_excluded_rows)),                                                         0),
+  -- persona-grain base sizes, the numbers a banner actually reports
+  STRUCT('G6-07 base personas PARENT2',   (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='PARENT2'   AND is_in_qre_base),              107),
+  STRUCT('G6-08 base personas POLORIENT', (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='POLORIENT' AND is_in_qre_base),              338),
+  STRUCT('G6-09 base personas LIKE',      (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='LIKE'      AND is_in_qre_base),              355),
+  STRUCT('G6-10 base personas DISLIKE',   (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='DISLIKE'   AND is_in_qre_base),              372),
+  STRUCT('G6-11 base personas URG2',      (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='URG2'      AND is_in_qre_base),              347),
+  STRUCT('G6-12 base personas PRELIKE1',  (SELECT COUNT(DISTINCT archetype_id) FROM f WHERE meta='PRELIKE1'  AND is_in_qre_base),              393)
 ])
 ORDER BY check_name
 "
@@ -139,7 +164,7 @@ echo "expected: 32258 + 7920 = 40178"
 
 echo
 if [[ "$fails" == "0" ]]; then
-  echo "GATE 4 PASSED: 40,178 / 398 / 91 / 36,218 — all 18 assertions green."
+  echo "GATES 4 + 6 PASSED: 40,178 rows, 39,502 in the QRE base, all 30 assertions green."
   echo "Curated layer is complete. ff_30_marts can now be built."
 else
   echo "GATE 4 FAILED: $fails assertion(s) red — see the ok column above." >&2

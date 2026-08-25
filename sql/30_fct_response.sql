@@ -35,6 +35,16 @@
 -- sentinel. That last group is a real answer ("none of these"), not missing
 -- data -- treat it as such downstream.
 --
+-- is_in_qre_base
+-- --------------
+-- The QRE routes 17 questions; the panel answered all of them for everyone.
+-- This flag reapplies the routing so banner bases match how the human study
+-- (N=800, fielded through a real survey engine) would have run. 676 rows are
+-- excluded -- note that is ROW grain: PARENT2 is in section 2.1, whose personas
+-- carry two replicate runs, so its 291 out-of-base personas become 435 rows.
+--
+-- Nothing is deleted. Banners choose their base explicitly and declare it.
+--
 -- Physical layout
 -- ---------------
 -- Clustered, never date-partitioned. 40,178 rows is four orders of magnitude
@@ -44,7 +54,29 @@
 
 CREATE OR REPLACE TABLE `${PROJECT_ID}.${DS_CUR}.fct_response`
 CLUSTER BY modality, creative, meta, cohort_code AS
-WITH scale AS (
+WITH
+-- F11: the QRE gates 17 questions behind earlier answers; the synthetic panel
+-- enforced none of them. These are the gating answers per persona, taken from
+-- stg_response rather than from fct_response because primary_code is derived in
+-- this same query -- reading it back would be circular.
+persona_gates AS (
+  SELECT
+    s.archetype_id,
+    MIN(IF(s.meta = 'POSTINT',   s.pc, NULL)) AS postint,
+    MIN(IF(s.meta = 'URG1',      s.pc, NULL)) AS urg1,
+    MIN(IF(s.meta = 'PARENT1',   s.pc, NULL)) AS parent1,
+    MIN(IF(s.meta = 'RECONFIRM', s.pc, NULL)) AS reconfirm,
+    LOGICAL_OR(s.meta = 'VGFRAN1' AND s.pc IN (1, 2, 3)) AS vgfran1_known
+  FROM (
+    SELECT
+      archetype_id, meta,
+      (SELECT MIN(o.option_code) FROM UNNEST(selected_options) AS o
+       WHERE o.option_code < 90) AS pc
+    FROM `${PROJECT_ID}.${DS_STG}.stg_response`
+  ) AS s
+  GROUP BY s.archetype_id
+),
+scale AS (
   SELECT DISTINCT question_key, scale_max
   FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`
 ),
@@ -54,6 +86,7 @@ joined AS (
     a.modality,
     a.creative,
     a.cohort_code,
+    a.age_band_banner AS _age_band,   -- helper for the QRE 18+ gate; dropped below
     ROW_NUMBER() OVER (
       PARTITION BY s.archetype_id, s.question_key
       ORDER BY ENDS_WITH(s.run_id, 'x') ASC, s.run_id ASC
@@ -66,7 +99,7 @@ joined AS (
     USING (archetype_id)
 )
 SELECT
-  j.* EXCEPT (run_rank, run_count),
+  j.* EXCEPT (run_rank, run_count, _age_band),
   (j.run_rank = 1) AS is_primary_run,
   j.run_count      AS n_runs_for_question,
   (
@@ -74,7 +107,26 @@ SELECT
     FROM UNNEST(j.selected_options) AS o
     WHERE o.option_code < 90
   ) AS primary_code,
-  sc.scale_max
+  sc.scale_max,
+
+  -- F11: TRUE for every ungated question, so `WHERE is_in_qre_base` is safe to
+  -- apply universally and only bites on the nine the QRE actually routes.
+  -- Rules mirrored in dim_qre_base; Gate 6 checks the two agree.
+  CASE j.meta
+    WHEN 'PARENT2'   THEN g.parent1 = 1
+    WHEN 'POLORIENT' THEN j._age_band != '13-17'
+    WHEN 'LIKE'      THEN g.postint IN (1, 2)
+    WHEN 'DISLIKE'   THEN g.postint IN (2, 3, 4)
+    WHEN 'URG2'      THEN g.urg1 IN (2, 3, 4)
+    WHEN 'ELEMENT2'  THEN g.urg1 IN (2, 3, 4)
+    WHEN 'PRELIKE1'  THEN g.reconfirm IN (1, 5)
+    WHEN 'PRELIKE2'  THEN g.reconfirm IN (1, 5)
+    WHEN 'RECONFIRM' THEN g.vgfran1_known
+    ELSE TRUE
+  END AS is_in_qre_base
+
 FROM joined AS j
 LEFT JOIN scale AS sc
-  ON sc.question_key = j.question_key;
+  ON sc.question_key = j.question_key
+JOIN persona_gates AS g
+  ON g.archetype_id = j.archetype_id;

@@ -13,7 +13,8 @@
 -- where option_code is a category id rather than a rank, producing numbers that
 -- look fine and mean nothing. Measured classification over all 91:
 --
---   ordinal_scale    69   closed, single-punch, scale_max > 1   -> box metrics valid
+--   ordinal_scale    54   closed, single-punch, scale_max > 1   -> box metrics valid
+--   categorical      15   ELEMENT1 (per the QRE)                -> percentages only
 --   multi_select      9   any row with more than one pick       -> incidence only
 --   single_option     2   scale_max = 1                         -> base counts only
 --   numeric_rating    1   q_type 2                              -> mean rating
@@ -62,6 +63,14 @@ SELECT
   CASE
     WHEN b.q_type = '1'            THEN 'open_end'
     WHEN b.q_type = '2'            THEN 'numeric_rating'
+    -- F9: ELEMENT1 is categorical, not ordinal. The QRE reads
+    -- [SINGLE SELECT] [ROTATE P1 & P2] over Increases / Decreases / Does not
+    -- change [ANCHOR]. Rotating punches 1 and 2 proves they are opposing
+    -- categories rather than adjacent scale points, and punch 3 is anchored
+    -- last as the neutral. So MEAN, BOT and B2B are not defined here; report
+    -- three percentages instead. This cannot be inferred from the data -- the
+    -- questionnaire is the only source -- hence the explicit meta.
+    WHEN b.meta = 'ELEMENT1'       THEN 'categorical'
     WHEN p.max_picks > 1           THEN 'multi_select'
     WHEN c.max_nonsentinel = 1     THEN 'single_option'
     ELSE 'ordinal_scale'

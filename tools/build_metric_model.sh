@@ -108,24 +108,26 @@ FROM UNNEST([
   -- dim_question + classification
   STRUCT('G5-01 dim_question rows'          AS check_name, (SELECT COUNT(*) FROM q)                                                    AS actual, 91 AS expected),
   STRUCT('G5-02 metric_kind NULL',          (SELECT COUNTIF(metric_kind IS NULL) FROM q),                                                        0),
-  STRUCT('G5-03 kind ordinal_scale',        (SELECT COUNTIF(metric_kind = 'ordinal_scale') FROM q),                                             69),
+  STRUCT('G5-03 kind ordinal_scale',        (SELECT COUNTIF(metric_kind = 'ordinal_scale') FROM q),                                             54),
   STRUCT('G5-04 kind multi_select',         (SELECT COUNTIF(metric_kind = 'multi_select') FROM q),                                                9),
   STRUCT('G5-05 kind single_option',        (SELECT COUNTIF(metric_kind = 'single_option') FROM q),                                               2),
   STRUCT('G5-06 kind numeric_rating',       (SELECT COUNTIF(metric_kind = 'numeric_rating') FROM q),                                              1),
   STRUCT('G5-07 kind open_end',             (SELECT COUNTIF(metric_kind = 'open_end') FROM q),                                                   10),
   -- the classification is right, not just the counts
   STRUCT('G5-08 CHARDES is multi_select',   (SELECT COUNTIF(meta = 'CHARDES' AND metric_kind = 'multi_select') FROM q),                           1),
+  STRUCT('G5-08b kind categorical [F9]',    (SELECT COUNTIF(metric_kind = 'categorical') FROM q),                                              15),
+  STRUCT('G5-08c ELEMENT1 all categorical', (SELECT COUNTIF(meta = 'ELEMENT1' AND metric_kind != 'categorical') FROM q),                         0),
   STRUCT('G5-09 ordinal scale_max out of {2,3,4,6}',
                                             (SELECT COUNT(*) FROM q JOIN sc USING (question_key)
                                              WHERE q.metric_kind = 'ordinal_scale' AND sc.scale_max NOT IN (2,3,4,6)),                            0),
   -- the gate actually applied
-  STRUCT('G5-10 box flags non-NULL rows',   (SELECT COUNTIF(is_tb IS NOT NULL) FROM m),                                                      30234),
-  STRUCT('G5-11 box flags NULL rows',       (SELECT COUNTIF(is_tb IS NULL) FROM m),                                                          9944),
+  STRUCT('G5-10 box flags non-NULL rows',   (SELECT COUNTIF(is_tb IS NOT NULL) FROM m),                                                      24264),
+  STRUCT('G5-11 box flags NULL rows',       (SELECT COUNTIF(is_tb IS NULL) FROM m),                                                         15914),
   STRUCT('G5-12 is_tb on non-ordinal',      (SELECT COUNTIF(metric_kind != 'ordinal_scale' AND is_tb IS NOT NULL) FROM m),                        0),
-  STRUCT('G5-13 is_tb TRUE (gated)',        (SELECT COUNTIF(is_tb) FROM m),                                                                  11414),
-  STRUCT('G5-14 is_t2b TRUE (gated)',       (SELECT COUNTIF(is_t2b) FROM m),                                                                 19509),
-  STRUCT('G5-15 is_bot TRUE (gated)',       (SELECT COUNTIF(is_bot) FROM m),                                                                  5960),
-  STRUCT('G5-16 is_b2b TRUE (gated)',       (SELECT COUNTIF(is_b2b) FROM m),                                                                 12000),
+  STRUCT('G5-13 is_tb TRUE (gated)',        (SELECT COUNTIF(is_tb) FROM m),                                                                   7399),
+  STRUCT('G5-14 is_t2b TRUE (gated)',       (SELECT COUNTIF(is_t2b) FROM m),                                                                 15306),
+  STRUCT('G5-15 is_bot TRUE (gated)',       (SELECT COUNTIF(is_bot) FROM m),                                                                  4193),
+  STRUCT('G5-16 is_b2b TRUE (gated)',       (SELECT COUNTIF(is_b2b) FROM m),                                                                 10045),
   -- fct_response_option
   STRUCT('G5-17 fct_response_option rows',  (SELECT COUNT(*) FROM o),                                                                        39490),
   STRUCT('G5-18 sentinel option rows',      (SELECT COUNTIF(is_sentinel) FROM o),                                                              419),
@@ -159,7 +161,7 @@ GROUP BY metric_kind ORDER BY questions DESC
 
 echo
 if [[ "$fails" == "0" ]]; then
-  echo "GATE 5 PASSED: 69/9/2/1/10 classified, 39,490 option rows, box flags gated."
+  echo "GATE 5 PASSED: 54/15/9/2/1/10 classified, 39,490 option rows, box flags gated."
   echo "Marts can now be built with the correct metric per question."
 else
   echo "GATE 5 FAILED: $fails assertion(s) red — see the ok column above." >&2

@@ -1,4 +1,4 @@
--- Data-quality suite: DQ01-DQ26, appended to ff_30_marts.dq_results.
+-- Data-quality suite: DQ01-DQ29, appended to ff_30_marts.dq_results.
 --
 -- Every assertion here encodes a defect actually found in this data. They are
 -- regression tests, not hypotheticals -- and every threshold was measured from
@@ -29,6 +29,12 @@
 --
 -- DQ25-DQ26 guard the F8 battery scale_max: 8 questions had their offered scale
 -- understated because it was derived from the codes respondents used.
+--
+-- DQ27-DQ29 come from the questionnaire itself. DQ27 keeps ELEMENT1 categorical
+-- (its punches rotate, so it is not a rank). DQ28 keeps the QRE routing applied:
+-- 676 rows sit outside the base the questionnaire defines, and DQ28e fails if the
+-- rule table and the CASE that implements it ever drift apart. DQ29 asserts the
+-- flag only ever adds a column and never drops a row.
 
 CREATE TABLE IF NOT EXISTS `${PROJECT_ID}.${DS_MART}.dq_results` (
   run_ts    TIMESTAMP,
@@ -51,6 +57,7 @@ q AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_question`),
 m AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.v_response_metrics`),
 fo AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.fct_response_option`),
 sc AS (SELECT DISTINCT question_key, scale_max FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`),
+qb AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_qre_base`),
 checks AS (
   SELECT dq_id, assertion, actual, expected
   FROM UNNEST([
@@ -96,7 +103,18 @@ checks AS (
                                                                                AND sc.scale_max NOT IN (2, 3, 4, 6)),                                                       0),
     -- F8: battery-level scale_max
     STRUCT('DQ25', 'questions with battery-corrected scale_max [F8]',       (SELECT COUNT(DISTINCT question_key) FROM o WHERE scale_max_source = 'battery'),                 8),
-    STRUCT('DQ26', 'scale_max below the observed max [F8 guard]',           (SELECT COUNT(*) FROM o WHERE scale_max < observed_max),                                         0)
+    STRUCT('DQ26', 'scale_max below the observed max [F8 guard]',           (SELECT COUNT(*) FROM o WHERE scale_max < observed_max),                                         0),
+    -- F9 / F11: the questionnaire's own rules, reapplied
+    STRUCT('DQ27a', 'ELEMENT1 questions not classified categorical [F9]',   (SELECT COUNTIF(meta = 'ELEMENT1' AND metric_kind != 'categorical') FROM q),                     0),
+    STRUCT('DQ27b', 'questions classified categorical [F9]',                (SELECT COUNTIF(metric_kind = 'categorical') FROM q),                                           15),
+    STRUCT('DQ28a', 'rows outside the QRE base [F11]',                      (SELECT COUNTIF(NOT is_in_qre_base) FROM f),                                                   676),
+    STRUCT('DQ28b', 'rows inside the QRE base [F11]',                       (SELECT COUNTIF(is_in_qre_base) FROM f),                                                     39502),
+    STRUCT('DQ28c', 'is_in_qre_base NULL',                                  (SELECT COUNTIF(is_in_qre_base IS NULL) FROM f),                                                0),
+    STRUCT('DQ28d', 'ungated question excluded from base [F11 guard]',      (SELECT COUNTIF(NOT is_in_qre_base AND meta NOT IN (SELECT meta FROM qb)) FROM f),               0),
+    STRUCT('DQ28e', 'rule table disagrees with implementation [F11 guard]', (SELECT COUNT(*) FROM qb JOIN (
+                                                                              SELECT meta, COUNTIF(NOT is_in_qre_base) AS excl FROM f GROUP BY meta
+                                                                            ) AS x USING (meta) WHERE x.excl != qb.expected_excluded_rows),                                 0),
+    STRUCT('DQ29', 'fct_response row count unchanged by the base flag',     (SELECT COUNT(*) FROM f),                                                                   40178)
   ])
 )
 SELECT

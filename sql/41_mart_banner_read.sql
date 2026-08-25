@@ -28,14 +28,25 @@
 -- Both are emitted so nothing has to be recomputed to switch, and every row
 -- declares which base produced it. 676 rows differ between them (F11).
 --
+-- Only TWO of the nine routed questions actually surface here: POLORIENT
+-- (338 vs 398) and ELEMENT2 (347 vs 398). The other seven -- PARENT2, LIKE,
+-- DISLIKE, URG2, PRELIKE1, PRELIKE2 and the no-op RECONFIRM -- are open_end,
+-- excluded from this mart by the filter below and tabulated in Phase 4. So the
+-- base flag on fct_response carries most of its value forward to verbatim
+-- coding, not to these banner tables. That is expected, not a gap: PARENT2's
+-- 291 out-of-base personas matter when its verbatims are coded, and the flag is
+-- already correct there.
+--
 -- WHERE is_primary_run on both, without exception: the replicated section 2.1
 -- questions double-count 198 personas otherwise.
 --
 -- F10 -- the theatre item's base
 -- The ACTIVITIES battery is one 6-point scale, but the theatre item screens out
--- "Never", so punch 6 leaves ITS base only and it reports T3B (punches 1-3)
--- rather than TB/T2B. Per the questionnaire's own screener and the banner
--- plan's annotation.
+-- "Never" (punch 6, measured: 2 personas at primary-run grain), so punch 6
+-- leaves ITS base only -- 396, not 398 -- and it gains T3B (punches 1-3), the
+-- read the banner plan annotates for it. TB/T2B are still emitted for it, since
+-- it is a genuine ordinal question; the banner reads T3B and every row names
+-- its own metric, so nothing is lost and nothing is implied.
 --
 -- KNOWN GAP -- EXPOSURE ORDER
 -- The banner plan defines 9 cuts on Banner 1; 8 are built here. Nothing in the
@@ -50,18 +61,19 @@
 CREATE OR REPLACE TABLE `${PROJECT_ID}.${DS_MART}.mart_banner_read`
 CLUSTER BY base_kind, creative, meta AS
 
+-- v_response_metrics ALREADY carries metric_kind (it joins dim_question to gate
+-- the box flags), so joining dim_question again here produced two columns of
+-- that name and every later reference to it was ambiguous. Read it off the view.
 WITH base AS (
   SELECT
     m.*,
-    q.metric_kind,
     -- F10: punch 6 is a screen-out on the theatre item, so it is not in base
     NOT (m.meta = 'ACTIVITIES'
          AND m.question_text LIKE '%theater%'
          AND m.primary_code = 6) AS in_question_base
   FROM `${PROJECT_ID}.${DS_CUR}.v_response_metrics` AS m
-  JOIN `${PROJECT_ID}.${DS_CUR}.dim_question` AS q USING (question_key)
   WHERE m.is_primary_run
-    AND q.metric_kind != 'open_end'
+    AND m.metric_kind != 'open_end'
 ),
 -- one row per (response, base_kind): 'unfiltered' keeps everything, 'qre'
 -- keeps only what the questionnaire would have asked
@@ -117,14 +129,29 @@ agg AS (
       base_kind, creative, meta, question_text, question_key, metric_kind,
       cut_name, cut_value,
       COUNT(*) AS n,
-      SAFE_DIVIDE(COUNTIF(is_tb),  COUNT(*))  AS tb_pct,
-      SAFE_DIVIDE(COUNTIF(is_t2b), COUNT(*))  AS t2b_pct,
-      SAFE_DIVIDE(COUNTIF(is_bot), COUNT(*))  AS bot_pct,
-      SAFE_DIVIDE(COUNTIF(is_b2b), COUNT(*))  AS b2b_pct,
-      AVG(IF(primary_code < 90, primary_code, NULL)) AS mean_score,
-      AVG(rating_value)                              AS mean_rating,
-      -- F10: T3B, used only by the theatre item
-      SAFE_DIVIDE(COUNTIF(primary_code IN (1, 2, 3)), COUNT(*)) AS t3b_pct
+
+      -- Every measure below is gated on metric_kind EXPLICITLY. Relying on the
+      -- view's NULL box flags is not enough, and this is the trap: COUNTIF(NULL)
+      -- is 0, not NULL, so SAFE_DIVIDE(0, n) is 0.0 -- a confident "0% top box"
+      -- on all 9 pick-lists, all 15 ELEMENT1 items and both single-option
+      -- formalities. That is exactly the wrong-number-instead-of-absent-number
+      -- failure v_response_metrics was built to stop, reintroduced one layer up.
+      IF(metric_kind = 'ordinal_scale', SAFE_DIVIDE(COUNTIF(is_tb),  COUNT(*)), NULL) AS tb_pct,
+      IF(metric_kind = 'ordinal_scale', SAFE_DIVIDE(COUNTIF(is_t2b), COUNT(*)), NULL) AS t2b_pct,
+      IF(metric_kind = 'ordinal_scale', SAFE_DIVIDE(COUNTIF(is_bot), COUNT(*)), NULL) AS bot_pct,
+      IF(metric_kind = 'ordinal_scale', SAFE_DIVIDE(COUNTIF(is_b2b), COUNT(*)), NULL) AS b2b_pct,
+
+      -- A mean needs a rank. ELEMENT1's three punches rotate (F9) and a
+      -- multi-select's option_code is a category id, so averaging either is
+      -- arithmetic on labels.
+      IF(metric_kind = 'ordinal_scale',
+         AVG(IF(primary_code < 90, primary_code, NULL)), NULL) AS mean_score,
+      IF(metric_kind = 'numeric_rating', AVG(rating_value), NULL) AS mean_rating,
+
+      -- F10: T3B belongs to the theatre item alone. Ungated it would attach a
+      -- punches-1-3 read to all 54 ordinal questions, where it means nothing.
+      IF(meta = 'ACTIVITIES' AND question_text LIKE '%theater%',
+         SAFE_DIVIDE(COUNTIF(primary_code IN (1, 2, 3)), COUNT(*)), NULL) AS t3b_pct
     FROM cut
     GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
   )
@@ -138,8 +165,8 @@ agg AS (
     STRUCT('MEAN_RATING', mean_rating),
     STRUCT('T3B_PCT',     t3b_pct)
   ]) AS mm
-  -- box metrics are NULL off ordinal_scale by construction, so this drops the
-  -- rows that would otherwise carry a meaningless measure
+  -- Each measure above is NULL wherever it does not apply, so this one line is
+  -- what keeps a meaningless metric out of the table rather than in it at 0.
   WHERE mm.value IS NOT NULL
 ),
 -- per-option measures: the correct grain for pick-lists and for ELEMENT1
@@ -158,7 +185,15 @@ opt AS (
   FROM (
     SELECT
       cut.*,
-      COUNT(DISTINCT archetype_id) OVER (
+      -- The cut's base: the denominator for every option percentage below.
+      --
+      -- COUNT(*), not COUNT(DISTINCT archetype_id) -- BigQuery rejects DISTINCT
+      -- in an analytic call. They are equal here because is_primary_run leaves
+      -- exactly one row per (persona, question) and each persona matches a given
+      -- (cut_name, cut_value) once, so a partition holds one row per persona.
+      -- That invariant is not assumed silently: M-11 asserts POSTINT's TOTAL
+      -- base is 398, which is this same count and would read 796 if it broke.
+      COUNT(*) OVER (
         PARTITION BY base_kind, creative, question_key, cut_name, cut_value
       ) AS cut_base_n
     FROM cut

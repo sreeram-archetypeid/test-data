@@ -15,6 +15,16 @@
 # depend on how many cuts each question qualifies for, so a hardcoded total
 # would be brittle; the invariants below are the meaningful checks.
 #
+# 81 of the 91 questions reach the mart; the 10 open_end ones are tabulated in
+# Phase 4. That is why the base-size checks name POLORIENT (338 vs 398) and
+# ELEMENT2 (347 vs 398): they are the only two of the nine QRE-routed questions
+# that are not open_end. M-17 records the absence of the other seven so it reads
+# as a decision rather than an omission.
+#
+# M-06/07/08 are not paperwork. Box metrics, MEAN and T3B are each gated on
+# metric_kind in the SQL because COUNTIF over a NULL flag returns 0, not NULL --
+# ungated, the mart would publish a confident 0.0% top box on every pick-list.
+#
 # Usage:
 #     ./tools/build_marts.sh
 #     ./tools/build_marts.sh --dry-run
@@ -86,24 +96,37 @@ FROM UNNEST([
   STRUCT('M-08 T3B only on theatre item',(SELECT COUNTIF(metric_name = 'T3B_PCT'
                                             AND question_text NOT LIKE '%theater%') FROM b),                                        0),
   STRUCT('M-09 EXPOSURE_ORDER absent',  (SELECT COUNTIF(cut_name = 'EXPOSURE_ORDER') FROM b),                                       0),
-  -- Total-cut base sizes are the numbers a banner reports. POSTINT is ungated,
-  -- so both bases must give 398; DISLIKE is gated, so qre must give 372.
-  STRUCT('M-10 POSTINT n, qre',         (SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-10 questions in mart',      (SELECT COUNT(DISTINCT question_key) FROM b),                                             81),
+  -- Total-cut base sizes are the numbers a banner reports. Measured from the
+  -- CSVs first; the parse that produced them reproduces Gate 4 exactly.
+  --
+  -- POLORIENT and ELEMENT2 are the ONLY two routed questions that reach this
+  -- mart. The other seven are open_end (M-17), so the qre-vs-unfiltered gap is
+  -- visible here on these two alone.
+  STRUCT('M-11 POSTINT n, qre',         (SELECT CAST(MAX(value) AS INT64) FROM b
                                           WHERE meta='POSTINT' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='qre'),                                            398),
-  STRUCT('M-11 DISLIKE n, qre [F11]',   (SELECT CAST(MAX(value) AS INT64) FROM b
-                                          WHERE meta='DISLIKE' AND cut_name='TOTAL'
-                                            AND metric_name='N' AND base_kind='qre'),                                            372),
-  STRUCT('M-12 DISLIKE n, unfiltered',  (SELECT CAST(MAX(value) AS INT64) FROM b
-                                          WHERE meta='DISLIKE' AND cut_name='TOTAL'
+  STRUCT('M-12 POLORIENT n, qre [F11]', (SELECT CAST(MAX(value) AS INT64) FROM b
+                                          WHERE meta='POLORIENT' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'),                                            338),
+  STRUCT('M-13 POLORIENT n, unfiltered',(SELECT CAST(MAX(value) AS INT64) FROM b
+                                          WHERE meta='POLORIENT' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='unfiltered'),                                     398),
-  STRUCT('M-13 PARENT2 n, qre [F11]',   (SELECT CAST(MAX(value) AS INT64) FROM b
-                                          WHERE meta='PARENT2' AND cut_name='TOTAL'
-                                            AND metric_name='N' AND base_kind='qre'),                                            107),
-  -- F10: the theatre item drops punch 6 from its own base
-  STRUCT('M-14 theatre n < 398 [F10]',  (SELECT COUNTIF(value >= 398) FROM b
+  STRUCT('M-14 ELEMENT2 n, qre [F11]',  (SELECT CAST(MAX(value) AS INT64) FROM b
+                                          WHERE meta='ELEMENT2' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'),                                            347),
+  STRUCT('M-15 ELEMENT2 n, unfiltered', (SELECT CAST(MAX(value) AS INT64) FROM b
+                                          WHERE meta='ELEMENT2' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='unfiltered'),                                     398),
+  -- F10: the theatre item drops punch 6 ('Never', 2 personas) from its own base
+  STRUCT('M-16 theatre n, qre [F10]',   (SELECT CAST(MAX(value) AS INT64) FROM b
                                           WHERE meta='ACTIVITIES' AND question_text LIKE '%theater%'
-                                            AND cut_name='TOTAL' AND metric_name='N'),                                             0)
+                                            AND cut_name='TOTAL' AND metric_name='N'
+                                            AND base_kind='qre'),                                                                396),
+  -- Records WHY the other seven routed questions are absent, so a reader does
+  -- not read their absence as an oversight. They are open_end -> Phase 4.
+  STRUCT('M-17 gated open-ends absent', (SELECT COUNTIF(meta IN
+                                           ('PARENT2','LIKE','DISLIKE','URG2','PRELIKE1','PRELIKE2')) FROM b),                     0)
 ])
 ORDER BY check_name
 GATESQL
@@ -163,7 +186,7 @@ GROUP BY metric_kind ORDER BY metric_kind
 
 echo
 if [[ "$fails" == "0" ]]; then
-  echo "MARTS BUILT: all 14 structural checks green."
+  echo "MARTS BUILT: all 17 structural checks green."
   echo "EXPOSURE ORDER is absent by design -- nothing in the CSVs encodes it."
 else
   echo "MART CHECKS FAILED: $fails red — see the ok column above." >&2

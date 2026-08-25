@@ -138,6 +138,35 @@ base.
 
 ---
 
+## F14 — the QRE routing lands unevenly on the two creatives
+
+Building the banner mart surfaced this. Base sizes are per creative (Goyer 200
+personas, Sheridan 198), and the `ELEMENT2` gate — `URG1 ∈ {2,3,4}`, i.e. "not
+wanting to see it right away" — does not exclude the same share of each:
+
+| Creative | Personas | In `ELEMENT2` base | Excluded by the gate |
+|---|---:|---:|---:|
+| Goyer | 200 | 171 | **29** |
+| Sheridan | 198 | 176 | **22** |
+| | 398 | 347 | 51 |
+
+More Goyer readers answered `URG1` punch 1 — they wanted to see it in a theatre
+right away — so fewer of them were asked what was holding them back. `POLORIENT`
+shows no such skew (170 / 168, tracking the panel sizes), because its gate is age,
+which is a persona attribute rather than a response to the concept.
+
+**This is a result, not a defect.** But it has a reporting consequence: the
+`ELEMENT2` verbatim/pick-list percentages rest on bases that differ by creative
+for a reason connected to the thing being measured. Comparing the two creatives'
+`ELEMENT2` figures without stating both bases would understate Goyer's advantage,
+because the readers most enthusiastic about Goyer are precisely the ones the
+question skipped.
+
+Pinned by assertions M-17/M-18 in `tools/build_marts.sh` so a pooled total can
+never hide it.
+
+---
+
 ## The 800 / 998 / 398 reconciliation
 
 Three sample sizes across three documents, and they are consistent:
@@ -163,6 +192,7 @@ needs confirming, since it is the one step not documented anywhere.
 | F12 screener | Document; report screen-out-violating responses as a panel-fidelity metric |
 | F9 ELEMENT1 | Add `categorical` metric kind; suppress MEAN/BOT/B2B on 15 items |
 | F10 theatre | Per-question base rule: exclude punch 6, add T3B |
+| F14 uneven routing | Report `ELEMENT2` with both creatives' bases stated, never pooled |
 | F8 | Confirmed correct by the QRE. No change. |
 
 F9 and F10 were the two questions holding up the banner mart. **Both are now

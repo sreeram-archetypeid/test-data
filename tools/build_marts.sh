@@ -18,8 +18,13 @@
 # 81 of the 91 questions reach the mart; the 10 open_end ones are tabulated in
 # Phase 4. That is why the base-size checks name POLORIENT (338 vs 398) and
 # ELEMENT2 (347 vs 398): they are the only two of the nine QRE-routed questions
-# that are not open_end. M-17 records the absence of the other seven so it reads
+# that are not open_end. M-22 records the absence of the other seven so it reads
 # as a decision rather than an omission.
+#
+# GRAIN: this mart is keyed by creative, so cut_name='TOTAL' is per creative --
+# Goyer 200 personas, Sheridan 198 -- and every base-size check SUMs the two.
+# M-21 asserts that grain directly, so a whole-study number can never again be
+# compared against a single creative's row without something going red.
 #
 # M-06/07/08 are not paperwork. Box metrics, MEAN and T3B are each gated on
 # metric_kind in the SQL because COUNTIF over a NULL flag returns 0, not NULL --
@@ -100,32 +105,68 @@ FROM UNNEST([
   -- Total-cut base sizes are the numbers a banner reports. Measured from the
   -- CSVs first; the parse that produced them reproduces Gate 4 exactly.
   --
+  -- SUM, NOT MAX. This mart is grained by creative, so cut_name='TOTAL' means
+  -- "no demographic cut, WITHIN one creative" -- two rows per question, Goyer
+  -- (200 personas) and Sheridan (198). MAX silently returned whichever creative
+  -- happened to be larger, which is not even consistently the same one: on
+  -- ELEMENT2 the qre base is Goyer 171 vs Sheridan 176. Summing the two is the
+  -- whole-study base these expectations were written against.
+  --
   -- POLORIENT and ELEMENT2 are the ONLY two routed questions that reach this
-  -- mart. The other seven are open_end (M-17), so the qre-vs-unfiltered gap is
+  -- mart. The other seven are open_end (M-22), so the qre-vs-unfiltered gap is
   -- visible here on these two alone.
-  STRUCT('M-11 POSTINT n, qre',         (SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-11 POSTINT n, qre',         (SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='POSTINT' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='qre'),                                            398),
-  STRUCT('M-12 POLORIENT n, qre [F11]', (SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-12 POSTINT n, Goyer',       (SELECT CAST(SUM(value) AS INT64) FROM b
+                                          WHERE meta='POSTINT' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'
+                                            AND creative='Goyer'),                                                               200),
+  STRUCT('M-13 POSTINT n, Sheridan',    (SELECT CAST(SUM(value) AS INT64) FROM b
+                                          WHERE meta='POSTINT' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'
+                                            AND creative='Sheridan'),                                                            198),
+  STRUCT('M-14 POLORIENT n, qre [F11]', (SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='POLORIENT' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='qre'),                                            338),
-  STRUCT('M-13 POLORIENT n, unfiltered',(SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-15 POLORIENT n, unfiltered',(SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='POLORIENT' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='unfiltered'),                                     398),
-  STRUCT('M-14 ELEMENT2 n, qre [F11]',  (SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-16 ELEMENT2 n, qre [F11]',  (SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='ELEMENT2' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='qre'),                                            347),
-  STRUCT('M-15 ELEMENT2 n, unfiltered', (SELECT CAST(MAX(value) AS INT64) FROM b
+  -- ELEMENT2's gate (URG1 IN 2,3,4) excludes 29 Goyer personas but only 22
+  -- Sheridan ones: more Goyer readers wanted to see it right away, so fewer were
+  -- asked what held them back. A real difference between the creatives, pinned
+  -- here so a pooled total cannot hide it.
+  STRUCT('M-17 ELEMENT2 n, Goyer [F11]',(SELECT CAST(SUM(value) AS INT64) FROM b
+                                          WHERE meta='ELEMENT2' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'
+                                            AND creative='Goyer'),                                                               171),
+  STRUCT('M-18 ELEMENT2 n, Sheridan',   (SELECT CAST(SUM(value) AS INT64) FROM b
+                                          WHERE meta='ELEMENT2' AND cut_name='TOTAL'
+                                            AND metric_name='N' AND base_kind='qre'
+                                            AND creative='Sheridan'),                                                            176),
+  STRUCT('M-19 ELEMENT2 n, unfiltered', (SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='ELEMENT2' AND cut_name='TOTAL'
                                             AND metric_name='N' AND base_kind='unfiltered'),                                     398),
   -- F10: the theatre item drops punch 6 ('Never', 2 personas) from its own base
-  STRUCT('M-16 theatre n, qre [F10]',   (SELECT CAST(MAX(value) AS INT64) FROM b
+  STRUCT('M-20 theatre n, qre [F10]',   (SELECT CAST(SUM(value) AS INT64) FROM b
                                           WHERE meta='ACTIVITIES' AND question_text LIKE '%theater%'
                                             AND cut_name='TOTAL' AND metric_name='N'
                                             AND base_kind='qre'),                                                                396),
+  -- THE GRAIN GUARD. Every (base_kind, question, TOTAL, N) group must hold
+  -- exactly two rows, one per creative. This is the check whose absence let the
+  -- MAX mistake above show up as six unexplained near-halves instead of being
+  -- named on the first run. It also fails loudly if the mart is ever pooled
+  -- across creatives or gains a third.
+  STRUCT('M-21 TOTAL cut not 2 creatives',(SELECT COUNT(*) FROM (
+                                            SELECT base_kind, question_key FROM b
+                                            WHERE cut_name='TOTAL' AND metric_name='N'
+                                            GROUP BY 1,2 HAVING COUNT(DISTINCT creative) != 2)),                                    0),
   -- Records WHY the other seven routed questions are absent, so a reader does
   -- not read their absence as an oversight. They are open_end -> Phase 4.
-  STRUCT('M-17 gated open-ends absent', (SELECT COUNTIF(meta IN
+  STRUCT('M-22 gated open-ends absent', (SELECT COUNTIF(meta IN
                                            ('PARENT2','LIKE','DISLIKE','URG2','PRELIKE1','PRELIKE2')) FROM b),                     0)
 ])
 ORDER BY check_name
@@ -163,18 +204,21 @@ fails="$(
 
 echo
 echo "===== base sizes by question, TOTAL cut (qre vs unfiltered) ====="
+# SUM across the two creatives, not MAX -- see the note on M-11. Reporting MAX
+# here printed one creative's base (POLORIENT 170) while the assertions expected
+# the whole study (338), which made the wrong numbers look self-consistent.
 bq query --project_id="$PROJECT_ID" --use_legacy_sql=false --format=pretty --quiet "
 SELECT
   meta,
-  CAST(MAX(IF(base_kind = 'qre',        value, NULL)) AS INT64) AS n_qre,
-  CAST(MAX(IF(base_kind = 'unfiltered', value, NULL)) AS INT64) AS n_unfiltered
+  CAST(SUM(IF(base_kind = 'qre',        value, 0)) AS INT64) AS n_qre,
+  CAST(SUM(IF(base_kind = 'unfiltered', value, 0)) AS INT64) AS n_unfiltered
 FROM \`${PROJECT_ID}.${DS_MART}.mart_banner_read\`
 WHERE cut_name = 'TOTAL' AND metric_name = 'N'
 GROUP BY meta
 HAVING n_qre != n_unfiltered
 ORDER BY n_unfiltered - n_qre DESC
 "
-echo "expect exactly the gated questions, and only those"
+echo "expect POLORIENT 338 | 398 and ELEMENT2 347 | 398 -- those two and no others"
 
 echo
 echo "===== metrics emitted per metric_kind ====="
@@ -186,7 +230,7 @@ GROUP BY metric_kind ORDER BY metric_kind
 
 echo
 if [[ "$fails" == "0" ]]; then
-  echo "MARTS BUILT: all 17 structural checks green."
+  echo "MARTS BUILT: all 22 structural checks green."
   echo "EXPOSURE ORDER is absent by design -- nothing in the CSVs encodes it."
 else
   echo "MART CHECKS FAILED: $fails red — see the ok column above." >&2

@@ -1,0 +1,17 @@
+# Local configuration — holds the real project ID, bucket and dataset names.
+# The committed SQL carries ${PROJECT_ID} / ${DS_*} placeholders instead, and the
+# runners substitute them at execution time. This file must never be committed.
+config.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Notebooks — saved output embeds fully-qualified table names (and so the
+# project ID) into the committed JSON, and makes diffs unreadable.
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store

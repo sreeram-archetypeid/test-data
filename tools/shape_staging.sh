@@ -49,17 +49,62 @@ done
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-for s in "${SCRIPTS[@]}"; do
+# Substitute placeholders and refuse to continue if any survived.
+resolve() {  # resolve <src> <dst>
   sed -e "s|\${PROJECT_ID}|${PROJECT_ID}|g" \
       -e "s|\${DS_RAW}|${DS_RAW}|g" \
       -e "s|\${DS_STG}|${DS_STG}|g" \
-      "sql/${s}.sql" > "$WORK/${s}.sql"
-  if grep -q '\${' "$WORK/${s}.sql"; then
-    echo "ERROR: unsubstituted placeholder in ${s}:" >&2
-    grep -n '\${' "$WORK/${s}.sql" >&2
+      "$1" > "$2"
+  if grep -q '\${' "$2"; then
+    echo "ERROR: unsubstituted placeholder in $1:" >&2
+    grep -n '\${' "$2" >&2
     exit 1
   fi
+}
+
+for s in "${SCRIPTS[@]}"; do
+  resolve "sql/${s}.sql" "$WORK/${s}.sql"
 done
+
+# --- gate SQL -------------------------------------------------------------
+#
+# Written through SINGLE-QUOTED heredocs and then the same sed pass as the
+# committed sql/ files -- never as double-quoted bash strings, where a literal
+# like '$75K' expands as positional parameter $7 and aborts under `set -u`.
+# Writing them before the --dry-run exit is what makes --dry-run exercise them.
+
+cat > "$WORK/_per_section.in.sql" <<'GATESQL'
+SELECT 'stg_response_s21' AS tbl, COUNT(*) AS n FROM `${PROJECT_ID}.${DS_STG}.stg_response_s21`
+UNION ALL SELECT 'stg_response_s22', COUNT(*) FROM `${PROJECT_ID}.${DS_STG}.stg_response_s22`
+UNION ALL SELECT 'stg_response_s23', COUNT(*) FROM `${PROJECT_ID}.${DS_STG}.stg_response_s23`
+ORDER BY tbl
+GATESQL
+
+cat > "$WORK/_gates.in.sql" <<'GATESQL'
+WITH
+resp AS (SELECT * FROM `${PROJECT_ID}.${DS_STG}.stg_response`),
+opts AS (SELECT o.* FROM resp, UNNEST(resp.selected_options) AS o)
+SELECT check_name, actual, expected, (actual = expected) AS ok
+FROM UNNEST([
+  STRUCT('01 stg_response rows'        AS check_name, (SELECT COUNT(*) FROM resp)                                  AS actual, 40178 AS expected),
+  STRUCT('02 distinct archetype_id',   (SELECT COUNT(DISTINCT archetype_id) FROM resp),                                       398),
+  STRUCT('03 distinct question_key',   (SELECT COUNT(DISTINCT question_key) FROM resp),                                        91),
+  STRUCT('04 distinct meta',           (SELECT COUNT(DISTINCT meta) FROM resp),                                                36),
+  STRUCT('05 distinct run_id',         (SELECT COUNT(DISTINCT run_id) FROM resp),                                              12),
+  STRUCT('06 option tokens',           (SELECT COUNT(*) FROM opts),                                                         39490),
+  STRUCT('07 sentinel tokens >=90',    (SELECT COUNTIF(option_code >= 90) FROM opts),                                        419),
+  STRUCT('08 option_code NULL',        (SELECT COUNTIF(option_code IS NULL) FROM opts),                                        0),
+  STRUCT('09 labels still N. prefixed',(SELECT COUNTIF(REGEXP_CONTAINS(option_label, r'^[0-9]+\.')) FROM opts),                 0),
+  STRUCT('10 verbatims',               (SELECT COUNTIF(qual_text IS NOT NULL) FROM resp),                                  17301),
+  STRUCT('11 numeric ratings',         (SELECT COUNTIF(rating_value IS NOT NULL) FROM resp),                                  596)
+])
+ORDER BY check_name
+GATESQL
+
+resolve "$WORK/_per_section.in.sql" "$WORK/_per_section.sql"
+resolve "$WORK/_gates.in.sql"       "$WORK/_gates.sql"
+per_section_sql="$(cat "$WORK/_per_section.sql")"
+checks_sql="$(cat "$WORK/_gates.sql")"
 
 echo "Project : $PROJECT_ID"
 echo "Raw     : $DS_RAW"
@@ -71,6 +116,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   ls -1 "$WORK"
   echo
   cat "$WORK/11_stg_response.sql"
+  echo "===== gate SQL (resolved) ====="
+  cat "$WORK/_per_section.sql"; echo
+  cat "$WORK/_gates.sql"
   echo "Dry run — nothing executed."
   trap - EXIT
   echo "(left in $WORK)"
@@ -88,13 +136,6 @@ done
 
 echo
 echo "===== per-section row counts ====="
-
-per_section_sql="
-SELECT 'stg_response_s21' AS tbl, COUNT(*) AS n FROM \`${PROJECT_ID}.${DS_STG}.stg_response_s21\`
-UNION ALL SELECT 'stg_response_s22', COUNT(*) FROM \`${PROJECT_ID}.${DS_STG}.stg_response_s22\`
-UNION ALL SELECT 'stg_response_s23', COUNT(*) FROM \`${PROJECT_ID}.${DS_STG}.stg_response_s23\`
-ORDER BY tbl
-"
 bq query --project_id="$PROJECT_ID" --use_legacy_sql=false --format=pretty --quiet "$per_section_sql"
 echo "expected: 11920 / 13930 / 14328"
 
@@ -102,28 +143,6 @@ echo "expected: 11920 / 13930 / 14328"
 
 echo
 echo "===== staging assertions ====="
-
-checks_sql="
-WITH
-resp AS (SELECT * FROM \`${PROJECT_ID}.${DS_STG}.stg_response\`),
-opts AS (SELECT o.* FROM resp, UNNEST(resp.selected_options) AS o)
-SELECT check_name, actual, expected, (actual = expected) AS ok
-FROM UNNEST([
-  STRUCT('01 stg_response rows'        AS check_name, (SELECT COUNT(*) FROM resp)                                  AS actual, 40178 AS expected),
-  STRUCT('02 distinct archetype_id',   (SELECT COUNT(DISTINCT archetype_id) FROM resp),                                       398),
-  STRUCT('03 distinct question_key',   (SELECT COUNT(DISTINCT question_key) FROM resp),                                        91),
-  STRUCT('04 distinct meta',           (SELECT COUNT(DISTINCT meta) FROM resp),                                                36),
-  STRUCT('05 distinct run_id',         (SELECT COUNT(DISTINCT run_id) FROM resp),                                              12),
-  STRUCT('06 option tokens',           (SELECT COUNT(*) FROM opts),                                                         39490),
-  STRUCT('07 sentinel tokens >=90',    (SELECT COUNTIF(option_code >= 90) FROM opts),                                        419),
-  STRUCT('08 option_code NULL',        (SELECT COUNTIF(option_code IS NULL) FROM opts),                                        0),
-  STRUCT('09 labels still N. prefixed',(SELECT COUNTIF(REGEXP_CONTAINS(option_label, r'^[0-9]+\.')) FROM opts),                 0),
-  STRUCT('10 verbatims',               (SELECT COUNTIF(qual_text IS NOT NULL) FROM resp),                                  17301),
-  STRUCT('11 numeric ratings',         (SELECT COUNTIF(rating_value IS NOT NULL) FROM resp),                                  596)
-])
-ORDER BY check_name
-"
-
 bq query --project_id="$PROJECT_ID" --use_legacy_sql=false --format=pretty --quiet "$checks_sql"
 
 fails="$(

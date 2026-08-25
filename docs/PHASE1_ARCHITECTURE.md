@@ -179,6 +179,26 @@ Every runner has the same shape: source `config.env` → substitute
 `${PROJECT_ID}` / `${DS_*}` into a temp dir → **refuse to run if any
 placeholder survives** → execute → assert → non-zero exit on failure.
 
+**The assertion SQL follows the same route as the committed SQL.** Each runner
+writes its gate block through a single-quoted heredoc (`<<'GATESQL'`) and passes
+it through the same `resolve()` sed step, then reads it back with `$(cat …)`.
+
+This is not cosmetic. A gate built as a double-quoted bash string lets bash
+expand what it contains, and `set -u` then aborts the runner *after* the tables
+have been rebuilt but *before* anything is checked — which is exactly what the
+income band literal `'$75K-$125K'` did, bash reading it as positional parameter
+`$7`. Command-substitution output is not re-expanded, so the heredoc route
+delivers such literals to `bq` verbatim.
+
+Two consequences worth knowing:
+
+- `bash -n` **cannot** catch that class of fault. `$7` is valid syntax; `nounset`
+  fires at run time.
+- So the heredoc is written **before** the `--dry-run` exit, and `--dry-run`
+  prints the resolved gate SQL. `./tools/<runner>.sh --dry-run` is therefore a
+  real check on the assertion block, offline and without credentials. Run it
+  after editing any gate.
+
 ### Why Python → SQL → bash rather than one script
 
 - **The SQL is committed.** You review in VS Code exactly what ran against

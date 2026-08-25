@@ -65,44 +65,37 @@ done
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-for s in "${SCRIPTS[@]}"; do
+# Substitute placeholders and refuse to continue if any survived.
+resolve() {  # resolve <src> <dst>
   sed -e "s|\${PROJECT_ID}|${PROJECT_ID}|g" \
       -e "s|\${DS_STG}|${DS_STG}|g" \
       -e "s|\${DS_CUR}|${DS_CUR}|g" \
-      "sql/${s}.sql" > "$WORK/${s}.sql"
-  if grep -q '\${' "$WORK/${s}.sql"; then
-    echo "ERROR: unsubstituted placeholder in ${s}:" >&2
-    grep -n '\${' "$WORK/${s}.sql" >&2
+      "$1" > "$2"
+  if grep -q '\${' "$2"; then
+    echo "ERROR: unsubstituted placeholder in $1:" >&2
+    grep -n '\${' "$2" >&2
     exit 1
   fi
-done
-
-echo "Project : $PROJECT_ID"
-echo "Curated : $DS_CUR"
-echo
-
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  for s in "${SCRIPTS[@]}"; do
-    echo "===== sql/${s}.sql (resolved) ====="; cat "$WORK/${s}.sql"; echo
-  done
-  echo "Dry run — nothing executed."
-  exit 0
-fi
+}
 
 for s in "${SCRIPTS[@]}"; do
-  echo "Running ${s} ..."
-  bq query --project_id="$PROJECT_ID" --use_legacy_sql=false --quiet < "$WORK/${s}.sql"
+  resolve "sql/${s}.sql" "$WORK/${s}.sql"
 done
 
 # --- Gate 5 ---------------------------------------------------------------
+#
+# Written through a SINGLE-QUOTED heredoc and then the same sed pass as the
+# committed sql/ files -- never as a double-quoted bash string, where a literal
+# like '$75K' expands as positional parameter $7 and aborts under `set -u`.
+# Writing it before the --dry-run exit is what makes --dry-run exercise it.
 
-checks_sql="
+cat > "$WORK/_gates.in.sql" <<'GATESQL'
 WITH
-q  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.dim_question\`),
-m  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.v_response_metrics\`),
-o  AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.fct_response_option\`),
-qo AS (SELECT * FROM \`${PROJECT_ID}.${DS_CUR}.dim_question_option\`),
-sc AS (SELECT DISTINCT question_key, scale_max FROM \`${PROJECT_ID}.${DS_CUR}.dim_question_option\`)
+q  AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_question`),
+m  AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.v_response_metrics`),
+o  AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.fct_response_option`),
+qo AS (SELECT * FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`),
+sc AS (SELECT DISTINCT question_key, scale_max FROM `${PROJECT_ID}.${DS_CUR}.dim_question_option`)
 SELECT check_name, actual, expected, (actual = expected) AS ok
 FROM UNNEST([
   -- dim_question + classification
@@ -140,7 +133,28 @@ FROM UNNEST([
   STRUCT('G5-24 scale_max NULL',            (SELECT COUNTIF(scale_max IS NULL) FROM qo),                                                        0)
 ])
 ORDER BY check_name
-"
+GATESQL
+
+resolve "$WORK/_gates.in.sql" "$WORK/_gates.sql"
+checks_sql="$(cat "$WORK/_gates.sql")"
+
+echo "Project : $PROJECT_ID"
+echo "Curated : $DS_CUR"
+echo
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  for s in "${SCRIPTS[@]}"; do
+    echo "===== sql/${s}.sql (resolved) ====="; cat "$WORK/${s}.sql"; echo
+  done
+  echo "===== gate SQL (resolved) ====="; cat "$WORK/_gates.sql"; echo
+  echo "Dry run — nothing executed."
+  exit 0
+fi
+
+for s in "${SCRIPTS[@]}"; do
+  echo "Running ${s} ..."
+  bq query --project_id="$PROJECT_ID" --use_legacy_sql=false --quiet < "$WORK/${s}.sql"
+done
 
 echo
 echo "===== GATE 5 ====="

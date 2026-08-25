@@ -12,6 +12,9 @@
 # 81 the plan doc states -- that 81 counts row-occurrences across the 12 wide
 # files, and each persona appears in 3-4 of them (F2).
 #
+# G2-23..36 cover the banner cut columns, including the F13 race normalisation
+# (7 empty values, a 'Latico' typo, and two spellings of Asian).
+#
 # Usage:
 #     ./tools/build_curated_dims.sh
 #     ./tools/build_curated_dims.sh --dry-run
@@ -113,6 +116,21 @@ FROM UNNEST([
   STRUCT('G2-20 cohort G.2',             (SELECT COUNTIF(cohort_code = 'G.2') FROM a),                                            100),
   STRUCT('G2-21 cohort S.1',             (SELECT COUNTIF(cohort_code = 'S.1') FROM a),                                             98),
   STRUCT('G2-22 cohort S.2',             (SELECT COUNTIF(cohort_code = 'S.2') FROM a),                                            100),
+  -- banner cut columns (F13 race normalisation + marital / income banding)
+  STRUCT('G2-23 race White Non-Hisp',    (SELECT COUNTIF(race_banner = 'White Non-Hisp') FROM a),                                  214),
+  STRUCT('G2-24 race Hispanic [F13]',    (SELECT COUNTIF(race_banner = 'Hispanic') FROM a),                                         73),
+  STRUCT('G2-25 race African American',  (SELECT COUNTIF(race_banner = 'African American') FROM a),                                 63),
+  STRUCT('G2-26 race Asian [F13]',       (SELECT COUNTIF(race_banner = 'Asian') FROM a),                                            41),
+  STRUCT('G2-27 race Unknown [F13]',     (SELECT COUNTIF(race_banner = 'Unknown') FROM a),                                           7),
+  STRUCT('G2-28 race Other (must be 0)', (SELECT COUNTIF(race_banner = 'Other') FROM a),                                             0),
+  STRUCT('G2-29 marital SINGLE',         (SELECT COUNTIF(marital_banner = 'SINGLE') FROM a),                                        189),
+  STRUCT('G2-30 marital MARRIED/PARTND', (SELECT COUNTIF(marital_banner = 'MARRIED/PARTNERED') FROM a),                            155),
+  STRUCT('G2-31 marital DIVORCED',       (SELECT COUNTIF(marital_banner = 'DIVORCED') FROM a),                                       40),
+  STRUCT('G2-32 marital OTHER',          (SELECT COUNTIF(marital_banner = 'OTHER') FROM a),                                          14),
+  STRUCT('G2-33 income <75K',            (SELECT COUNTIF(income_band_banner = '<75K') FROM a),                                      152),
+  STRUCT('G2-34 income $75K-$125K',      (SELECT COUNTIF(income_band_banner = '$75K-$125K') FROM a),                                178),
+  STRUCT('G2-35 income $125K+',          (SELECT COUNTIF(income_band_banner = '$125K+') FROM a),                                     68),
+  STRUCT('G2-36 income band NULL',       (SELECT COUNTIF(income_band_banner IS NULL) FROM a),                                         0),
   -- Gate 2b: dim_run
   STRUCT('G2b-01 dim_run rows',          (SELECT COUNT(*) FROM r),                                                                 12),
   STRUCT('G2b-02 sum n_rows',            (SELECT CAST(SUM(n_rows) AS INT64) FROM r),                                             1392),
@@ -151,7 +169,7 @@ GROUP BY scale_max ORDER BY scale_max
 
 echo
 if [[ "$fails" == "0" ]]; then
-  echo "GATES 2 / 2b / 3 PASSED: 398 / 12 / 91 / 334, all 35 assertions green."
+  echo "GATES 2 / 2b / 3 PASSED: 398 / 12 / 91 / 334, all 49 assertions green."
 else
   echo "FAILED: $fails assertion(s) red — see the ok column above." >&2
   exit 1

@@ -29,6 +29,10 @@ D4  age: three columns kept -- age_raw untouched, age_exact where an exact age
 D5  gender: 'MALE' appears for one persona; INITCAP(TRIM()) folds it.
 D6  income: see F6 below.
 D11 nps_score is a string in source; SAFE_CAST plus a derived band.
+F13 archetype_race needs normalising - see the CASE below.
+
+Banner cut columns (race_banner, marital_banner, income_band_banner) are built
+here rather than in the mart so each mapping is defined exactly once.
 
 F6 -- income has eight shapes, not two
 --------------------------------------
@@ -174,7 +178,50 @@ SELECT
     ELSE 'Detractor'
   END AS nps_band,
 
-  (archetype_children_status != 'no_children') AS is_parent
+  (archetype_children_status != 'no_children') AS is_parent,
+
+  -- Banner cut columns. These live here, not in the mart, so each mapping is
+  -- defined once. Target labels come from FF_READ_G_BannerPlan row 10.
+
+  -- F13: archetype_race was carried through raw and needs normalising. Measured:
+  -- 7 personas with an EMPTY value, one typo ('Latico / Hispanic'), and two
+  -- spellings of the same category ('Asian or Pacific Islander' x40 vs
+  -- 'Asian / Pacific Islander' x1). Unlike gender, age and income, this column
+  -- had no cleaning rule until now.
+  CASE
+    WHEN archetype_race LIKE 'White%'                     THEN 'White Non-Hisp'
+    WHEN archetype_race LIKE 'Lat%'                       THEN 'Hispanic'
+    WHEN archetype_race LIKE 'Black%'                     THEN 'African American'
+    WHEN archetype_race LIKE 'Asian%'                     THEN 'Asian'
+    WHEN TRIM(COALESCE(archetype_race, '')) = ''          THEN 'Unknown'
+    ELSE 'Other'
+  END AS race_banner,
+
+  -- The banner plan offers only SINGLE / MARRIED-PARTNERED / DIVORCED. Source
+  -- has six values, so 'widowed' (12) and 'separated' (2) have no banner home.
+  -- They go to OTHER rather than being dropped or forced into a category they
+  -- do not belong to. The banner plan's own RELATIONSHIP rows sum to 0.978, so
+  -- it has the same gap.
+  CASE archetype_marital_status
+    WHEN 'single'           THEN 'SINGLE'
+    WHEN 'married'          THEN 'MARRIED/PARTNERED'
+    WHEN 'domestic_partner' THEN 'MARRIED/PARTNERED'
+    WHEN 'divorced'         THEN 'DIVORCED'
+    ELSE 'OTHER'
+  END AS marital_banner,
+
+  -- Banded on the MIDPOINT of the parsed income range, the standard convention
+  -- for a banded range. 13 personas would fall in a different band if banded on
+  -- income_low_usd instead; that alternative is a one-line change and the
+  -- affected count is asserted, so the sensitivity is measurable rather than
+  -- hidden.
+  CASE
+    WHEN DIV(income_first_usd + COALESCE(income_second_usd, income_first_usd), 2) < 75000
+      THEN '<75K'
+    WHEN DIV(income_first_usd + COALESCE(income_second_usd, income_first_usd), 2) < 125000
+      THEN '$75K-$125K'
+    ELSE '$125K+'
+  END AS income_band_banner
 
 FROM parsed p;
 """

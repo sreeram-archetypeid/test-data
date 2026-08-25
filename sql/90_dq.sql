@@ -27,6 +27,11 @@
 -- one: it fails if a box flag ever reappears on a question where option_code
 -- is a category id rather than a rank.
 --
+-- DQ20a moved 69 -> 54 when ELEMENT1 was reclassified categorical (F9). DQ20e
+-- was added at the same time: it asserts the kinds account for all 91
+-- questions regardless of how they are split, so a future reclassification
+-- cannot leave one per-kind count stale without something going red.
+--
 -- DQ25-DQ26 guard the F8 battery scale_max: 8 questions had their offered scale
 -- understated because it was derived from the codes respondents used.
 --
@@ -91,10 +96,12 @@ checks AS (
     STRUCT('DQ18', 'sentinel leaked into primary_code [F5 guard]',          (SELECT COUNTIF(primary_code >= 90) FROM f),                                                     0),
     STRUCT('DQ19', 'personas with NULL income_low_usd [F6 guard]',          (SELECT COUNTIF(income_low_usd IS NULL) FROM a),                                                 0),
     -- Step 14: the metric model. DQ20-DQ24 guard the close-out fix.
-    STRUCT('DQ20a', 'questions classified ordinal_scale',                   (SELECT COUNTIF(metric_kind = 'ordinal_scale') FROM q),                                         69),
+    STRUCT('DQ20a', 'questions classified ordinal_scale',                   (SELECT COUNTIF(metric_kind = 'ordinal_scale') FROM q),                                         54),
     STRUCT('DQ20b', 'questions classified multi_select',                    (SELECT COUNTIF(metric_kind = 'multi_select') FROM q),                                           9),
     STRUCT('DQ20c', 'questions classified single_option',                   (SELECT COUNTIF(metric_kind = 'single_option') FROM q),                                          2),
     STRUCT('DQ20d', 'questions with NULL metric_kind',                      (SELECT COUNTIF(metric_kind IS NULL) FROM q),                                                    0),
+    STRUCT('DQ20e', 'metric_kind counts sum to the question total',         (SELECT COUNT(*) FROM q WHERE metric_kind IN
+                                                                             ('ordinal_scale','categorical','multi_select','single_option','numeric_rating','open_end')),  91),
     STRUCT('DQ21', 'fct_response_option row count',                         (SELECT COUNT(*) FROM fo),                                                                  39490),
     STRUCT('DQ22', 'box flags present on a non-ordinal question',           (SELECT COUNTIF(metric_kind != 'ordinal_scale' AND is_tb IS NOT NULL) FROM m),                   0),
     STRUCT('DQ23', 'sentinel rows in fct_response_option [F5 guard]',       (SELECT COUNTIF(is_sentinel) FROM fo),                                                         419),

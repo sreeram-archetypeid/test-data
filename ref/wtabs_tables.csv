@@ -1,0 +1,153 @@
+banner,table_no,meta,layout,marker,base_stmt,question_title
+Ban1,1,AGE,plain,,Base: Total Respondents,AGE. What is your age?
+Ban1,2,GENDER,plain,,Base: Total Respondents,GENDER. How do you identify your gender?
+Ban1,3,ZIPCODE,plain,,Base: US RESPONDENTS,ZIPCODE. Please enter the zip code of the city that you are located in
+Ban1,4,ETHNICITY,plain,,Base: US RESPONDENTS,ETHNICITY. Which of the following race or ethnic categories do you most identify with?
+Ban1,5,ACTIVITIES,per_item,See movies in a theater,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,6,ACTIVITIES,per_item,Play video games,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,7,ACTIVITIES,per_item,Stream movies/series,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,8,ACTIVITIES,per_item,Scroll through social media,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,9,ACTIVITIES,per_item,Watch sports on TV/streaming,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,10,ACTIVITIES,per_item,"Read comics, graphic novels, or manga",Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,11,ACTIVITIES,summary,'Every day' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,12,ACTIVITIES,summary,'Every week' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,13,ACTIVITIES,summary,'Every month' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,14,ACTIVITIES,summary,'Every 2-6 months' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,15,ACTIVITIES,summary,'Once a year or less' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,16,ACTIVITIES,summary,'Never' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban1,17,GFAN1,per_item,Action,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,18,GFAN1,per_item,Martial Arts,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,19,GFAN1,summary,'One of my favorites' Summary Table,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,20,GFAN1,summary,"'I like, but not a favorite' Summary Table",Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,21,GFAN1,summary,"'Don’t really like, but sometimes watch' Summary Table",Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,22,GFAN1,summary,'I never see these' Summary Table,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban1,23,VGFRAN1,per_item,The Art of Fighting,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,24,VGFRAN1,per_item,The King of Fighters,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,25,VGFRAN1,per_item,Fatal Fury,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,26,VGFRAN1,per_item,Southtown Cume,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,27,VGFRAN1,summary,'I know a lot about this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,28,VGFRAN1,summary,'I know a little about this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,29,VGFRAN1,summary,'I have heard of this but don't know it' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,30,VGFRAN1,summary,'I have never heard of this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban1,31,VGFRAN2,per_item,The Art of Fighting,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,32,VGFRAN2,per_item,The King of Fighters,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,33,VGFRAN2,per_item,Fatal Fury,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,34,VGFRAN2,summary,I am very much a fan,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,35,VGFRAN2,summary,I am somewhat a fan,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,36,VGFRAN2,summary,I would not consider myself a fan at all,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban1,37,VGFRAN3,per_item,The Art of Fighting,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,38,VGFRAN3,per_item,The King of Fighters,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,39,VGFRAN3,per_item,Fatal Fury,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,40,VGFRAN3,summary,'Definitely interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,41,VGFRAN3,summary,'Probably interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,42,VGFRAN3,summary,'Probably not interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,43,VGFRAN3,summary,'Definitely not interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban1,44,PRELIKE1,plain,,Base: KNOW SOUTHTOWN GAMES,"PRELIKE1. Thinking about King of Fighting, Fatal Fury, and/or The Art of Fighting, what do you like best about these videogame franchises?"
+Ban1,45,PRELIKE2,plain,,Base: KNOW SOUTHTOWN GAMES,"PRELIKE2. Thinking about a live-action movie based on King of Fighting, Fatal Fury, and/or The Art of Fighting, are there any ''must haves'' or aspects you feel are essential?"
+Ban1,46,POSTINT,plain,,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban1,47,POSTINT,per_item,T1 - SHERIDAN,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban1,48,POSTINT,per_item,T2 - GOYER,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban1,49,LIKE,plain,,Base: Total Respondents,LIKE. What do you expect to like about this new movie? What grabs your attention and makes you most interested in seeing this movie in a theater when it is produced
+Ban1,50,DISLIKE,plain,,Base: Total Respondents,DISLIKE. What is holding you back from ''definitely'' wanting to see this movie in a theater when it is produced?
+Ban1,51,GENREFIT,plain,,Base: Total Respondents,GENREFIT. Which of the following best describe the type of movie this feels like?
+Ban1,52,STORYDES,plain,,Base: Total Respondents,"STORYDES. Now that you have a description of the upcoming Fatal Fury movie, which of the following words and phrases would you use to describe the movie?"
+Ban1,53,FRESHNSS,plain,,Base: Total Respondents,FRESHNSS. Which of the following best describes this idea?
+Ban1,54,VIABLE1,plain,,Base: Total Respondents,"VIABLE1. Based on the concept you just read, how interested would you be in seeing additional stories set in the world of Southtown?"
+Ban1,55,CHARDES,plain,,Base: Total Respondents,"CHARDES. Based on the description you just read, which words or phrases best describe the character of Terry Bogard?"
+Ban1,56,VIABLE2,plain,,Base: Total Respondents,"VIABLE2. Based on the concept you just read, how interested would you be in seeing more stories centered around the character of Terry Bogard?"
+Ban1,57,URG1,plain,,Base: Total Respondents,"URG1. Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most likely attend?"
+Ban1,58,URG2,plain,,Base: WILL NOT SEE RIGHT AWAY,URG2. What is holding you back from seeing this movie right away or on opening weekend in a theater?
+Ban1,59,HIGHLIGHT-POSITIVE,summary,T1 - Sheridan,Base: Total Respondents,"HIGHLIGHT-POSITIVE. Please focus on the parts of the story you like or would be especially interested to see as part of the movie, and use the POSITIVE button to select them."
+Ban1,60,HIGHLIGHT-NEGTIVE,summary,T1 - Sheridan,Base: Total Respondents,"HIGHLIGHT-NEGTIVE. If there are any sections that you don't particularly like or would not look forward to seeing in the movie, use the NEGATIVE button to select them."
+Ban1,61,HIGHLIGHT-POSITIVE,summary,T2 - Goyer,Base: Total Respondents,"HIGHLIGHT-POSITIVE. Please focus on the parts of the story you like or would be especially interested to see as part of the movie, and use the POSITIVE button to select them."
+Ban1,62,HIGHLIGHT-NEGTIVE,summary,T2 - Goyer,Base: Total Respondents,"HIGHLIGHT-NEGTIVE. If there are any sections that you don't particularly like or would not look forward to seeing in the movie, use the NEGATIVE button to select them."
+Ban1,63,IMPROVE,plain,,Base: Total Respondents,IMPROVE. How would you build on or change this description to make it more appealing to you and make you more likely to ''definitely'' want to see this movie in a theater?
+Ban1,64,ELEMENT1,summary,'Increases my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban1,65,ELEMENT1,summary,'Decreases my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban1,66,ELEMENT1,summary,'Does not change my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban1,67,ELEMENT2,plain,,Base: Total Respondents,"ELEMENT2. Thinking about what would make you most interested in seeing this movie, which of the following statements best describe your feelings about the description you just read?"
+Ban1,68,AUD1,plain,,Base: Total Respondents,AUD1. Would you say this new movie is...?
+Ban1,69,AUD2,plain,,Base: Total Respondents,AUD2. Who do you think would enjoy this new movie most
+Ban1,70,AUD3,plain,,Base: Total Respondents,AUD3. Does this feel like a movie that could appeal to people even if they know nothing about Fatal Fury?
+Ban1,71,SEEWITH,plain,,Base: Total Respondents,"SEEWITH. Who would you see this movie with, in a theater?"
+Ban1,72,PLATFORM,plain,,Base: Total Respondents,"PLATFORM. Which of the following gaming platforms, if any, do you currently use to play video games?"
+Ban1,73,SOCIAL,plain,,Base: Total Respondents,SOCIAL. Which of the following social media sites/apps do you use most to discover new content or fan communities?
+Ban1,74,POLORIENT,plain,,Base: Total Respondents,POLORIENT. In terms of your political orientation would you say you are...?
+Ban1,75,EDU,plain,,Base: Total Respondents,EDU. What is your level of education?
+Ban1,76,INCOME,plain,,Base: Total Respondents,INCOME. What is your annual household income?
+Ban2,1,AGE,plain,,Base: Total Respondents,AGE. What is your age?
+Ban2,2,GENDER,plain,,Base: Total Respondents,GENDER. How do you identify your gender?
+Ban2,3,ZIPCODE,plain,,Base: US RESPONDENTS,ZIPCODE. Please enter the zip code of the city that you are located in
+Ban2,4,ETHNICITY,plain,,Base: US RESPONDENTS,ETHNICITY. Which of the following race or ethnic categories do you most identify with?
+Ban2,5,ACTIVITIES,per_item,See movies in a theater,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,6,ACTIVITIES,per_item,Play video games,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,7,ACTIVITIES,per_item,Stream movies/series,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,8,ACTIVITIES,per_item,Scroll through social media,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,9,ACTIVITIES,per_item,Watch sports on TV/streaming,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,10,ACTIVITIES,per_item,"Read comics, graphic novels, or manga",Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,11,ACTIVITIES,summary,'Every day' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,12,ACTIVITIES,summary,'Every week' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,13,ACTIVITIES,summary,'Every month' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,14,ACTIVITIES,summary,'Every 2-6 months' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,15,ACTIVITIES,summary,'Once a year or less' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,16,ACTIVITIES,summary,'Never' Summary Table,Base: Total Respondents,ACTIVITIES. Approximately how often do you...?
+Ban2,17,GFAN1,per_item,Action,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,18,GFAN1,per_item,Martial Arts,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,19,GFAN1,summary,'One of my favorites' Summary Table,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,20,GFAN1,summary,"'I like, but not a favorite' Summary Table",Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,21,GFAN1,summary,"'Don’t really like, but sometimes watch' Summary Table",Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,22,GFAN1,summary,'I never see these' Summary Table,Base: Total Respondents,GFAN1. How do you feel about the following genres of movies/TV series?
+Ban2,23,VGFRAN1,per_item,The Art of Fighting,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,24,VGFRAN1,per_item,The King of Fighters,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,25,VGFRAN1,per_item,Fatal Fury,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,26,VGFRAN1,per_item,Southtown Cume,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,27,VGFRAN1,summary,'I know a lot about this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,28,VGFRAN1,summary,'I know a little about this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,29,VGFRAN1,summary,'I have heard of this but don't know it' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,30,VGFRAN1,summary,'I have never heard of this' Summary Table,Base: Total Respondents,VGFRAN1. Which best describes your feelings about the following gaming franchises?
+Ban2,31,VGFRAN2,per_item,The Art of Fighting,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,32,VGFRAN2,per_item,The King of Fighters,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,33,VGFRAN2,per_item,Fatal Fury,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,34,VGFRAN2,summary,I am very much a fan,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,35,VGFRAN2,summary,I am somewhat a fan,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,36,VGFRAN2,summary,I would not consider myself a fan at all,Base: Total Respondents,"VGFRAN2. Now we want to come back to some of the video game franchises you said you have at least heard of. For each of the following, would you say you are…?"
+Ban2,37,VGFRAN3,per_item,The Art of Fighting,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,38,VGFRAN3,per_item,The King of Fighters,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,39,VGFRAN3,per_item,Fatal Fury,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,40,VGFRAN3,summary,'Definitely interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,41,VGFRAN3,summary,'Probably interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,42,VGFRAN3,summary,'Probably not interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,43,VGFRAN3,summary,'Definitely not interested' Summary Table,Base: Total Respondents,"VGFRAN3. Based on anything that you know about these video game franchises, or even just the names, how interested would you be in seeing a new,"
+Ban2,44,PRELIKE1,plain,,Base: KNOW SOUTHTOWN GAMES,"PRELIKE1. Thinking about King of Fighting, Fatal Fury, and/or The Art of Fighting, what do you like best about these videogame franchises?"
+Ban2,45,PRELIKE2,plain,,Base: KNOW SOUTHTOWN GAMES,"PRELIKE2. Thinking about a live-action movie based on King of Fighting, Fatal Fury, and/or The Art of Fighting, are there any ''must haves'' or aspects you feel are essential?"
+Ban2,46,POSTINT,plain,,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban2,47,POSTINT,per_item,T1 - SHERIDAN,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban2,48,POSTINT,per_item,T2 - GOYER,Base: Total Respondents,"POSTINT. Based on the concept you just read, how interested would you be in seeing this new, live-action movie in a theater when it is produced?"
+Ban2,49,LIKE,plain,,Base: Total Respondents,LIKE. What do you expect to like about this new movie? What grabs your attention and makes you most interested in seeing this movie in a theater when it is produced
+Ban2,50,DISLIKE,plain,,Base: Total Respondents,DISLIKE. What is holding you back from ''definitely'' wanting to see this movie in a theater when it is produced?
+Ban2,51,GENREFIT,plain,,Base: Total Respondents,GENREFIT. Which of the following best describe the type of movie this feels like?
+Ban2,52,STORYDES,plain,,Base: Total Respondents,"STORYDES. Now that you have a description of the upcoming Fatal Fury movie, which of the following words and phrases would you use to describe the movie?"
+Ban2,53,FRESHNSS,plain,,Base: Total Respondents,FRESHNSS. Which of the following best describes this idea?
+Ban2,54,VIABLE1,plain,,Base: Total Respondents,"VIABLE1. Based on the concept you just read, how interested would you be in seeing additional stories set in the world of Southtown?"
+Ban2,55,CHARDES,plain,,Base: Total Respondents,"CHARDES. Based on the description you just read, which words or phrases best describe the character of Terry Bogard?"
+Ban2,56,VIABLE2,plain,,Base: Total Respondents,"VIABLE2. Based on the concept you just read, how interested would you be in seeing more stories centered around the character of Terry Bogard?"
+Ban2,57,URG1,plain,,Base: Total Respondents,"URG1. Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most likely attend?"
+Ban2,58,URG2,plain,,Base: WILL NOT SEE RIGHT AWAY,URG2. What is holding you back from seeing this movie right away or on opening weekend in a theater?
+Ban2,59,HIGHLIGHT-POSITIVE,summary,T1 - Sheridan,Base: Total Respondents,"HIGHLIGHT-POSITIVE. Please focus on the parts of the story you like or would be especially interested to see as part of the movie, and use the POSITIVE button to select them."
+Ban2,60,HIGHLIGHT-NEGTIVE,summary,T1 - Sheridan,Base: Total Respondents,"HIGHLIGHT-NEGTIVE. If there are any sections that you don't particularly like or would not look forward to seeing in the movie, use the NEGATIVE button to select them."
+Ban2,61,HIGHLIGHT-POSITIVE,summary,T2 - Goyer,Base: Total Respondents,"HIGHLIGHT-POSITIVE. Please focus on the parts of the story you like or would be especially interested to see as part of the movie, and use the POSITIVE button to select them."
+Ban2,62,HIGHLIGHT-NEGTIVE,summary,T2 - Goyer,Base: Total Respondents,"HIGHLIGHT-NEGTIVE. If there are any sections that you don't particularly like or would not look forward to seeing in the movie, use the NEGATIVE button to select them."
+Ban2,63,IMPROVE,plain,,Base: Total Respondents,IMPROVE. How would you build on or change this description to make it more appealing to you and make you more likely to ''definitely'' want to see this movie in a theater?
+Ban2,64,ELEMENT1,summary,'Increases my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban2,65,ELEMENT1,summary,'Decreases my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban2,66,ELEMENT1,summary,'Does not change my interest' Summary Table,Base: Total Respondents,ELEMENT1. Please select how each of the following elements affect your interest in seeing this film in a theater.
+Ban2,67,ELEMENT2,plain,,Base: Total Respondents,"ELEMENT2. Thinking about what would make you most interested in seeing this movie, which of the following statements best describe your feelings about the description you just read?"
+Ban2,68,AUD1,plain,,Base: Total Respondents,AUD1. Would you say this new movie is...?
+Ban2,69,AUD2,plain,,Base: Total Respondents,AUD2. Who do you think would enjoy this new movie most
+Ban2,70,AUD3,plain,,Base: Total Respondents,AUD3. Does this feel like a movie that could appeal to people even if they know nothing about Fatal Fury?
+Ban2,71,SEEWITH,plain,,Base: Total Respondents,"SEEWITH. Who would you see this movie with, in a theater?"
+Ban2,72,PLATFORM,plain,,Base: Total Respondents,"PLATFORM. Which of the following gaming platforms, if any, do you currently use to play video games?"
+Ban2,73,SOCIAL,plain,,Base: Total Respondents,SOCIAL. Which of the following social media sites/apps do you use most to discover new content or fan communities?
+Ban2,74,POLORIENT,plain,,Base: Total Respondents,POLORIENT. In terms of your political orientation would you say you are...?
+Ban2,75,EDU,plain,,Base: Total Respondents,EDU. What is your level of education?
+Ban2,76,INCOME,plain,,Base: Total Respondents,INCOME. What is your annual household income?

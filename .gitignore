@@ -3,6 +3,15 @@
 # runners substitute them at execution time. This file must never be committed.
 config.env
 
+# Service-account keys. Phase 2 authenticates with a scoped key (dataEditor on
+# the marts dataset, dataViewer everywhere else) because the gcloud SDK cannot be
+# installed in the web sandbox — dl.google.com is blocked by network policy — so
+# there is no `gcloud auth login` to fall back on. A key is a long-lived
+# credential: never commit one, and rotate it when the phase closes.
+.secrets/
+*-key.json
+*.sa.json
+
 # Python
 .venv/
 venv/
@@ -15,3 +24,10 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Parsed W-Tabs cells — a build output of tools/extract_wtabs.py, regenerated
+# deterministically from the four CSVs in `Final W Tabs (1)/`. The reviewable
+# artifacts are the script and ref/wtabs_tables.csv; this file is ~10MB of
+# derived numbers and does not belong in history.
+ref/wtabs_cells.csv
+ref/wtabs_long.csv

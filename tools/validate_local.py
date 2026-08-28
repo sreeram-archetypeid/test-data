@@ -207,8 +207,12 @@ def build_cuts(personas, resp):
         if c:
             cuts[aid].add(("GAMING", "Daily" if c == 1 else "Weekly/Monthly"))
 
+        # F10: punch 6 'Never' is a screen-out on the theatre item and leaves the
+        # base entirely, so this family covers 396 personas, not 398. Folding
+        # 'Never' into 'Every 2-6 Months' overstates that column — caught by
+        # cross-checking against sql/42, which had it right (279 vs 281).
         c = resp.get((aid, "ACTIVITIES", theatre)) if theatre else None
-        if c:
+        if c and c <= 5:
             cuts[aid].add(("MOVIEGOING",
                            "Weekly/Monthly" if c <= 3 else "Every 2-6 Months"))
 

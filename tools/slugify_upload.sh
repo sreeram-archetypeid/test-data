@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 #
-# Stage the 12 READ-modality respondent CSVs to GCS under the Phase 1 filename
+# Stage the 14 READ-modality respondent CSVs to GCS under the Phase 1 filename
 # convention:
 #
-#     read_{g|s}_{gr1|gr2}_s2_{1|2|3}[x].csv
+#     read_{g|s}_{gr1|gr2}_s{1|2}_{1|2|3|4}[x].csv
 #
 # Why rename at all: the source names carry em-dashes and spaces
 # ("3-ARENA-FF-G-gr1-2.2 — Results-c.csv"), which are hostile to GCS URIs and to
-# every glob downstream. The `s2_` segment is what dim_run's extractor parses to
-# recover section_code, so it is load-bearing, not cosmetic.
+# every glob downstream. The `s{major}_{section}` segment is what dim_run's
+# extractor parses to recover section_code, so it is load-bearing, not cosmetic.
 #
-# Only the 12 .csv files migrate. The 2 stray .xlsx in the source folder are
+# The section-1.4 files (AGE / ZIPCODE / GENDER / INCOME, added after Phase 1)
+# arrived in a separate delivery folder, so the source is a LIST of directories
+# rather than one. Both the major and minor section numbers are captured: an
+# earlier version hardcoded `s2_`, which would have renamed 1.4 to `s2_4x` --
+# a name that looks right and silently collides with the 2.x namespace.
+#
+# Only the 14 .csv files migrate. The 2 stray .xlsx in the source folder are
 # Excel renderings of CSVs already in the set (plan doc §5.1).
 #
 # Usage:
@@ -21,11 +27,12 @@
 
 set -euo pipefail
 
-SRC="${SRC:-Written Descriptions_2026_08_7}"
+# Source folders, in delivery order. Override with SRC_DIRS="a:b" if needed.
+IFS=':' read -r -a SRC_DIRS <<< "${SRC_DIRS:-Written Descriptions_2026_08_7:Written Descriptions_2026_08_18}"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
-EXPECTED_COUNT=12
+EXPECTED_COUNT=14
 
 # --- resolve config -------------------------------------------------------
 
@@ -41,7 +48,9 @@ if [[ -z "${GCS_PREFIX:-}" ]]; then
 fi
 : "${GCS_PREFIX:?GCS_PREFIX resolved empty — check config.env}"
 
-[[ -d "$SRC" ]] || { echo "ERROR: source directory not found: $SRC" >&2; exit 1; }
+for d in "${SRC_DIRS[@]}"; do
+  [[ -d "$d" ]] || { echo "ERROR: source directory not found: $d" >&2; exit 1; }
+done
 
 # --- build the mapping ----------------------------------------------------
 #
@@ -54,7 +63,11 @@ tgts=()
 while IFS= read -r f; do
   stem="$(basename "$f" .csv)"
 
-  if [[ ! "$stem" =~ ^3-ARENA-FF-([GS])-(gr[12])-2\.([123])(X?) ]]; then
+  # The replicate marker is upper-case on the 2.x files ("2.1X") and lower-case
+  # on the 1.4 delivery ("1.4x"), so match either. Missing it here does not
+  # error -- it silently drops the marker and produces a target name that looks
+  # correct, which is how it slipped through the first time.
+  if [[ ! "$stem" =~ ^3-ARENA-FF-([GS])-(gr[12])-([12])\.([1-4])([Xx]?) ]]; then
     echo "ERROR: unrecognised filename, refusing to guess a target name:" >&2
     echo "       $stem" >&2
     exit 1
@@ -62,17 +75,18 @@ while IFS= read -r f; do
 
   creative="$(printf '%s' "${BASH_REMATCH[1]}" | tr 'A-Z' 'a-z')"
   group="${BASH_REMATCH[2]}"
-  section="${BASH_REMATCH[3]}"
-  replicate="$(printf '%s' "${BASH_REMATCH[4]}" | tr 'A-Z' 'a-z')"
+  major="${BASH_REMATCH[3]}"
+  section="${BASH_REMATCH[4]}"
+  replicate="$(printf '%s' "${BASH_REMATCH[5]}" | tr 'A-Z' 'a-z')"
 
   srcs+=("$f")
-  tgts+=("read_${creative}_${group}_s2_${section}${replicate}.csv")
-done < <(find "$SRC" -maxdepth 1 -name '*.csv' | sort)
+  tgts+=("read_${creative}_${group}_s${major}_${section}${replicate}.csv")
+done < <(find "${SRC_DIRS[@]}" -maxdepth 1 -name '*.csv' | sort)
 
 # --- validate the mapping before touching the network ---------------------
 
 if [[ "${#srcs[@]}" -ne "$EXPECTED_COUNT" ]]; then
-  echo "ERROR: found ${#srcs[@]} CSVs in '$SRC', expected $EXPECTED_COUNT." >&2
+  echo "ERROR: found ${#srcs[@]} CSVs in '${SRC_DIRS[*]}', expected $EXPECTED_COUNT." >&2
   exit 1
 fi
 
@@ -96,12 +110,16 @@ read_s_gr1_s2_3.csv
 read_s_gr2_s2_1x.csv
 read_s_gr2_s2_2.csv
 read_s_gr2_s2_3.csv
+read_g_gr1_s1_4x.csv
+read_s_gr1_s1_4x.csv
 EOF
 )"
 
-if ! diff -q <(printf '%s\n' "${tgts[@]}" | sort) <(printf '%s\n' "$expected_set") >/dev/null; then
-  echo "ERROR: mapping does not match the 12 expected object names." >&2
-  diff <(printf '%s\n' "${tgts[@]}" | sort) <(printf '%s\n' "$expected_set") >&2 || true
+# Both sides sorted: the literal list below is a SET, so its order in the
+# heredoc must not be able to fail the check.
+if ! diff -q <(printf '%s\n' "${tgts[@]}" | sort) <(printf '%s\n' "$expected_set" | sort) >/dev/null; then
+  echo "ERROR: mapping does not match the $EXPECTED_COUNT expected object names." >&2
+  diff <(printf '%s\n' "${tgts[@]}" | sort) <(printf '%s\n' "$expected_set" | sort) >&2 || true
   exit 1
 fi
 
@@ -115,7 +133,7 @@ done
 echo
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  echo "Dry run — nothing uploaded. Re-run without --dry-run to stage these 12 files."
+  echo "Dry run — nothing uploaded. Re-run without --dry-run to stage these ${#srcs[@]} files."
   exit 0
 fi
 
@@ -142,10 +160,10 @@ if [[ "$remote_count" -ne "$EXPECTED_COUNT" ]]; then
   exit 1
 fi
 
-if ! diff -q <(printf '%s\n' "$remote") <(printf '%s\n' "$expected_set") >/dev/null; then
+if ! diff -q <(printf '%s\n' "$remote" | sort) <(printf '%s\n' "$expected_set" | sort) >/dev/null; then
   echo "GATE FAILED: object names in GCS do not match the expected set." >&2
-  diff <(printf '%s\n' "$remote") <(printf '%s\n' "$expected_set") >&2 || true
+  diff <(printf '%s\n' "$remote" | sort) <(printf '%s\n' "$expected_set" | sort) >&2 || true
   exit 1
 fi
 
-echo "GATE PASSED: 12 objects staged with the expected names."
+echo "GATE PASSED: $EXPECTED_COUNT objects staged with the expected names."

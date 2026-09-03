@@ -21,7 +21,8 @@
 --
 --      Never pool ELEMENT2. Its QRE gate excludes 29 Goyer personas but only 22
 --      Sheridan (F14), so a pooled ELEMENT2 figure averages two different bases
---      and understates Goyer. Asserted in tools/build_wtab_banner.sh.
+--      and understates Goyer. Enforced in scoped_cr below, and re-asserted as a
+--      gate in tools/build_wtab_banner.sh.
 --
 --   3. PER-OPTION rows now cover ordinal_scale as well as multi_select and
 --      categorical. This is the change that makes the table able to reproduce a
@@ -78,6 +79,18 @@ scoped_cr AS (
   SELECT s.* EXCEPT (creative), cr AS creative
   FROM scoped AS s
   CROSS JOIN UNNEST([s.creative, '(pooled)']) AS cr
+  -- ELEMENT2 is never pooled under the QRE base. Measured: its gate leaves
+  -- Goyer at 171 of 200 (14.5% excluded) and Sheridan at 176 of 198 (11.1%),
+  -- so a pooled figure averages two differently-gated bases and understates
+  -- Goyer. The header has said "never pool ELEMENT2" since this file was
+  -- written, but nothing enforced it and the mart carried 484 such rows.
+  --
+  -- Excluded here rather than asserted in the runner: a row that must never be
+  -- read is a trap whether or not a gate shouts about it afterwards.
+  --
+  -- The unfiltered scope is deliberately NOT excluded. No gate is applied
+  -- there, so 398 = 200 + 198 and pooling is exactly what it claims to be.
+  WHERE NOT (cr = '(pooled)' AND s.base_kind = 'qre' AND s.meta = 'ELEMENT2')
 ),
 -- Expand each response across every banner column its persona belongs to.
 -- dim_cuts_wtab is long, so a persona in 9 columns produces 9 rows here.

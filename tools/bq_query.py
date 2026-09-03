@@ -180,13 +180,28 @@ def main():
         return
 
     d = query(sql, cfg)
-    text, rows = render(d, args.format)
     kind = d.get("statementType", "")
-    if text is None:
-        # DDL/DML: no result set. Say so explicitly — "0 rows" reads like failure.
+
+    # Detect "no result set" via totalRows, NOT via the schema and NOT via
+    # statementType:
+    #
+    #   - a CREATE TABLE AS SELECT returns the schema of the table it just
+    #     built, with no rows, so keying off the schema prints an empty result
+    #     grid for a successful build -- exactly the "0 rows reads like failure"
+    #     confusion this is meant to prevent;
+    #   - jobs.query does not return statementType at all. That field only comes
+    #     back from jobs.get, so a check against it silently never fires.
+    #
+    # totalRows is absent for DDL and present (even as "0") for a SELECT.
+    if d.get("totalRows") is None:
         affected = d.get("numDmlAffectedRows")
-        print(f"{label}: {kind or 'statement'} OK"
+        print(f"{label}: {kind or 'DDL'} OK"
               + (f", {int(affected):,} rows affected" if affected else ""))
+        return
+
+    text, rows = render(d, args.format)
+    if text is None:
+        print(f"{label}: {kind or 'statement'} OK")
     else:
         print(text)
         if args.format == "table":

@@ -137,21 +137,38 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-# --- upload ---------------------------------------------------------------
+# --- transport ------------------------------------------------------------
 #
-# gcloud storage cp verifies a CRC32C checksum per object, so a truncated or
-# corrupted upload fails here rather than surfacing as a bad row count at Gate 1.
+# gcloud when it is available (a developer machine), tools/gcs_helper.py when it
+# is not. The web sandbox cannot install the SDK -- dl.google.com is blocked by
+# network policy -- and without a fallback the staging step simply cannot run
+# there, which is how the section-1.4 files went unlanded for so long.
+#
+# Both transports verify the uploaded byte count server-side: gcloud by CRC32C,
+# the helper by comparing the returned size. A truncated upload must fail here
+# rather than surfacing as a wrong row count at Gate 1.
+
+if command -v gcloud >/dev/null 2>&1; then
+  put() { gcloud storage cp "$1" "$GCS_PREFIX/$2"; }
+  list_remote() { gcloud storage ls "$GCS_PREFIX/" | sed 's|.*/||' | grep -v '^$'; }
+else
+  echo "gcloud not found — using tools/gcs_helper.py (needs GOOGLE_ACCESS_TOKEN)."
+  put() { python3 tools/gcs_helper.py cp "$1" "$2"; }
+  list_remote() { python3 tools/gcs_helper.py ls; }
+fi
+
+# --- upload ---------------------------------------------------------------
 
 for i in "${!srcs[@]}"; do
   echo "Uploading ${tgts[$i]} ..."
-  gcloud storage cp "${srcs[$i]}" "$GCS_PREFIX/${tgts[$i]}"
+  put "${srcs[$i]}" "${tgts[$i]}"
 done
 
 # --- verify ---------------------------------------------------------------
 
 echo
 echo "Verifying ..."
-remote="$(gcloud storage ls "$GCS_PREFIX/" | sed 's|.*/||' | grep -v '^$' | sort)"
+remote="$(list_remote | sort)"
 remote_count="$(printf '%s\n' "$remote" | wc -l | tr -d ' ')"
 
 if [[ "$remote_count" -ne "$EXPECTED_COUNT" ]]; then

@@ -32,7 +32,10 @@ q() { python3 tools/bq_query.py --format tsv -e "$1" | tail -n +2; }
 EXPECT_CUT_ROWS=6238
 EXPECT_CUT_PERSONAS=398
 EXPECT_CUT_FAMILIES=13
-EXPECT_MART_QUESTIONS=81
+# 81 before section 1.4; +4 for AGE, ZIPCODE, GENDER, INCOME. Re-measured after
+# the rebuild, not adjusted to make the gate pass -- the gate caught the change,
+# which is what it is for.
+EXPECT_MART_QUESTIONS=85
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Would run, in order:"

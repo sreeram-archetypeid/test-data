@@ -34,6 +34,7 @@ FAMILIES = {
     "s21": ("2.1", 20, 11920),   # 596 rows x 20 questions
     "s22": ("2.2", 35, 13930),   # 398 rows x 35 questions
     "s23": ("2.3", 36, 14328),   # 398 rows x 36 questions
+    "s14": ("1.4",  4,  1592),   # 398 rows x  4 questions
 }
 
 FIELDS = ["question", "meta", "type", "rating_label", "rating", "selected", "qual"]

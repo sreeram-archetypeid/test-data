@@ -33,6 +33,16 @@ WITH all_sections AS (
   SELECT '2.2' AS section_code, * FROM `${PROJECT_ID}.${DS_STG}.stg_response_s22`
   UNION ALL
   SELECT '2.3' AS section_code, * FROM `${PROJECT_ID}.${DS_STG}.stg_response_s23`
+  UNION ALL
+  -- Section 1.4 (AGE / ZIPCODE / GENDER / INCOME), delivered after Phase 1
+  -- closed. Same 398 personas, same column shape out of the unpivot, so it
+  -- unions without any special case.
+  --
+  -- Its option encoding differs and deliberately needs no code change: 1.4
+  -- stores GENDER as '1. Man' (code-and-label) where 2.x stores
+  -- '1. 1. Definitely interested' (position-code-label). The COALESCE in the
+  -- option parser below already falls back to the single-prefix form.
+  SELECT '1.4' AS section_code, * FROM `${PROJECT_ID}.${DS_STG}.stg_response_s14`
 )
 SELECT
   archetype_id,

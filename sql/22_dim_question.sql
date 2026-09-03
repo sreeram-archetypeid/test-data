@@ -15,6 +15,7 @@
 --
 --   ordinal_scale    54   closed, single-punch, scale_max > 1   -> box metrics valid
 --   categorical      15   ELEMENT1 (per the QRE)                -> percentages only
+--                     +1  GENDER (section 1.4)                  -> percentages only
 --   multi_select      9   any row with more than one pick       -> incidence only
 --   single_option     2   scale_max = 1                         -> base counts only
 --   numeric_rating    1   q_type 2                              -> mean rating
@@ -71,6 +72,13 @@ SELECT
     -- three percentages instead. This cannot be inferred from the data -- the
     -- questionnaire is the only source -- hence the explicit meta.
     WHEN b.meta = 'ELEMENT1'       THEN 'categorical'
+    -- Same reasoning as ELEMENT1, for the same reason it cannot be inferred
+    -- from the data. GENDER's punches are Man / Woman: two labels, not two
+    -- points on a scale. Left to fall through, it lands on ordinal_scale
+    -- (single-punch, max code 2) and the metric layer then computes a top box,
+    -- a bottom box and a MEAN of 1.4 -- numbers that look fine and mean
+    -- nothing. Percentages are the only defined measure.
+    WHEN b.meta = 'GENDER'         THEN 'categorical'
     WHEN p.max_picks > 1           THEN 'multi_select'
     WHEN c.max_nonsentinel = 1     THEN 'single_option'
     ELSE 'ordinal_scale'

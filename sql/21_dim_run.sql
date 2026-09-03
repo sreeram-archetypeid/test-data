@@ -1,4 +1,4 @@
--- dim_run: one row per source file (12). A thin lookup from run_id to its
+-- dim_run: one row per source file (14). A thin lookup from run_id to its
 -- section and whether it is a combined (2.1X) file.
 --
 -- It deliberately does NOT carry the primary-run flag. Whether a run is primary
@@ -23,6 +23,8 @@ WITH files AS (
   SELECT _source_file FROM `${PROJECT_ID}.${DS_RAW}.raw_read_s22`
   UNION ALL
   SELECT _source_file FROM `${PROJECT_ID}.${DS_RAW}.raw_read_s23`
+  UNION ALL
+  SELECT _source_file FROM `${PROJECT_ID}.${DS_RAW}.raw_read_s14`
 ),
 grouped AS (
   SELECT
@@ -35,7 +37,10 @@ grouped AS (
 SELECT
   run_id,
   source_file,
-  REPLACE(REGEXP_EXTRACT(run_id, r's(2_\d)x?$'), '_', '.') AS section_code,
+  -- Captures the major section digit too. Pinned to s2_, section 1.4's two runs
+  -- returned NULL section_code -- the same F4 failure this file's header
+  -- describes, reappearing the moment a non-2.x section arrived.
+  REPLACE(REGEXP_EXTRACT(run_id, r's([12]_\d)x?$'), '_', '.') AS section_code,
   ENDS_WITH(run_id, 'x')                                   AS is_combined_file,
   CASE
     WHEN STARTS_WITH(run_id, 'read_g_') THEN 'Goyer'

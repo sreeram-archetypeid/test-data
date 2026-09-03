@@ -52,11 +52,17 @@ import re
 import sys
 from collections import Counter, defaultdict
 
-CSV_GLOB = "Written Descriptions_2026_08_7/*.csv"
+# Both delivery folders. Section 1.4 arrived separately, and this script's whole
+# value is that it recomputes the warehouse totals from source with no shared
+# code -- which it can only do if it reads the same source the warehouse does.
+CSV_GLOBS = [
+    "Written Descriptions_2026_08_7/*.csv",
+    "Written Descriptions_2026_08_18/*.csv",
+]
 CELLS_PATH = "ref/wtabs_cells.csv"
 
 EXPECTED_PERSONAS = 398
-EXPECTED_FACT_ROWS = 40178          # Gate 4
+EXPECTED_FACT_ROWS = 41770          # Gate 4: 40,178 in sections 2.x + 1,592 in 1.4
 
 OPT_CODE_RE = re.compile(r"^\s*\d+\.\s*(\d+)\.")
 OPT_CODE_FALLBACK_RE = re.compile(r"^\s*(\d+)\.")
@@ -86,7 +92,7 @@ def load():
     -> primary_code, already reduced to the primary run.
     """
     personas, rows = {}, []
-    for path in sorted(glob.glob(CSV_GLOB)):
+    for path in sorted(p for g in CSV_GLOBS for p in glob.glob(g)):
         stem = os.path.basename(path)
         # The 2.1X files are the combined ones; the standalone 2.1 wins.
         is_x = "2.1X" in stem

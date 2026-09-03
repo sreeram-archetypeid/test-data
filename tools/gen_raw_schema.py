@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate the raw-landing DDL for the three READ section families.
+Generate the raw-landing DDL for the READ section families.
 
 Emits, per family, an external table over the staged GCS objects plus a
 materialised copy that captures `_FILE_NAME`. Everything is typed STRING.
@@ -21,7 +21,7 @@ UNPIVOT four steps later.
 Usage
 -----
     python3 tools/gen_raw_schema.py s22          # print DDL for one family
-    python3 tools/gen_raw_schema.py --all        # write all three to sql/
+    python3 tools/gen_raw_schema.py --all        # write every family to sql/
 
 The generated SQL carries ${PROJECT_ID}, ${DS_RAW} and ${GCS_PREFIX}
 placeholders; tools/land_raw.sh substitutes them from config.env at run time.
@@ -32,19 +32,33 @@ import os
 import re
 import sys
 
-SRC_DIR = os.environ.get("SRC", "Written Descriptions_2026_08_7")
+# Section 1.4 was delivered separately from sections 2.1-2.3, so the source is a
+# LIST of directories. Override with SRC="a:b".
+SRC_DIRS = os.environ.get(
+    "SRC", "Written Descriptions_2026_08_7:Written Descriptions_2026_08_18"
+).split(":")
 
-# family -> (section digit, expected question count, expected column count)
+# family -> (section code, questions, columns, source files, attribute columns)
+#
+# The last two used to be module-level constants, which was fine while every
+# family had the same shape. Section 1.4 has neither: it shipped 2 files rather
+# than 4, and carries 80 attribute columns rather than 46 -- the same 46 as a
+# strict prefix, plus a 34-column aat_* diagnostics block. Left as constants,
+# both would have failed a check that was measuring the wrong thing.
 FAMILIES = {
-    "s21": ("1", 20, 186),
-    "s22": ("2", 35, 291),
-    "s23": ("3", 36, 298),
+    "s21": ("2.1", 20, 186, 4, 46),
+    "s22": ("2.2", 35, 291, 4, 46),
+    "s23": ("2.3", 36, 298, 4, 46),
+    "s14": ("1.4",  4, 108, 2, 80),
 }
 
-ATTR_COLS = 46          # persona attributes before the first question block
 BLOCK_COLS = 7          # question, meta, type, rating_label, rating, selected, qual
 
-SRC_NAME_RE = re.compile(r"^3-ARENA-FF-([GS])-(gr[12])-2\.([123])(X?)")
+# Captures BOTH halves of the section number. Pinned to 2.x, section 1.4 files
+# were rejected outright; and the lower-case 'x' matters -- the 2.x files carry
+# "2.1X" but the 1.4 delivery carries "1.4x", and (X?) matches the empty string
+# rather than failing, which silently drops the replicate marker.
+SRC_NAME_RE = re.compile(r"^3-ARENA-FF-([GS])-(gr[12])-([12])\.([1-4])([Xx]?)")
 BQ_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -53,27 +67,33 @@ def staged_object_name(stem):
     m = SRC_NAME_RE.match(stem)
     if not m:
         raise SystemExit(f"ERROR: unrecognised source filename: {stem}")
-    creative, group, section, replicate = m.groups()
-    return f"read_{creative.lower()}_{group}_s2_{section}{replicate.lower()}.csv"
+    creative, group, major, section, replicate = m.groups()
+    return (f"read_{creative.lower()}_{group}"
+            f"_s{major}_{section}{replicate.lower()}.csv")
 
 
 def collect(family):
     """Return (sorted object names, header) for one section family."""
-    section = FAMILIES[family][0]
-    if not os.path.isdir(SRC_DIR):
-        raise SystemExit(f"ERROR: source directory not found: {SRC_DIR}")
+    section, _, _, n_files, _ = FAMILIES[family]
+    major, minor = section.split(".")
 
     paths = []
-    for name in sorted(os.listdir(SRC_DIR)):
-        if not name.endswith(".csv"):
-            continue
-        m = SRC_NAME_RE.match(name[:-4])
-        if m and m.group(3) == section:
-            paths.append(os.path.join(SRC_DIR, name))
+    for d in SRC_DIRS:
+        if not os.path.isdir(d):
+            raise SystemExit(f"ERROR: source directory not found: {d}")
+        for name in sorted(os.listdir(d)):
+            if not name.endswith(".csv"):
+                continue
+            m = SRC_NAME_RE.match(name[:-4])
+            # Match on BOTH halves. Matching the minor digit alone would pull
+            # section 1.4's files into a hypothetical 2.4 family, and vice versa.
+            if m and m.group(3) == major and m.group(4) == minor:
+                paths.append(os.path.join(d, name))
+    paths.sort()
 
-    if len(paths) != 4:
+    if len(paths) != n_files:
         raise SystemExit(
-            f"ERROR: section 2.{section}: found {len(paths)} source files, expected 4"
+            f"ERROR: section {section}: found {len(paths)} source files, expected {n_files}"
         )
 
     headers = []
@@ -92,15 +112,15 @@ def collect(family):
                 "One external table cannot span differing schemas."
             )
 
-    _, n_questions, n_cols = FAMILIES[family]
+    _, n_questions, n_cols, _, attr_cols = FAMILIES[family]
     if len(base) != n_cols:
         raise SystemExit(
-            f"ERROR: section 2.{section}: header has {len(base)} columns, expected {n_cols}"
+            f"ERROR: section {section}: header has {len(base)} columns, expected {n_cols}"
         )
-    if len(base) != ATTR_COLS + BLOCK_COLS * n_questions:
+    if len(base) != attr_cols + BLOCK_COLS * n_questions:
         raise SystemExit(
-            f"ERROR: section 2.{section}: {len(base)} columns is not "
-            f"{ATTR_COLS} + {BLOCK_COLS}x{n_questions}"
+            f"ERROR: section {section}: {len(base)} columns is not "
+            f"{attr_cols} + {BLOCK_COLS}x{n_questions}"
         )
 
     dupes = sorted({c for c in base if base.count(c) > 1})
@@ -116,7 +136,7 @@ def collect(family):
 
 def render(family):
     objects, header = collect(family)
-    section, n_questions, n_cols = FAMILIES[family]
+    section, n_questions, n_cols, n_files, attr_cols = FAMILIES[family]
 
     cols = ",\n".join(f"  {c} STRING" for c in header)
     uris = ",\n".join(f"    '${{GCS_PREFIX}}/{o}'" for o in objects)
@@ -124,9 +144,9 @@ def render(family):
     return f"""\
 -- Generated by tools/gen_raw_schema.py -- do not edit by hand.
 --
--- Section 2.{section}: {n_questions} questions, {n_cols} columns
---                      ({ATTR_COLS} persona attributes + {BLOCK_COLS} x {n_questions} question blocks),
---                      4 source files.
+-- Section {section}: {n_questions} questions, {n_cols} columns
+--                    ({attr_cols} persona attributes + {BLOCK_COLS} x {n_questions} question blocks),
+--                    {n_files} source files.
 --
 -- allow_quoted_newlines is mandatory: 8,957 verbatim fields contain embedded
 -- newlines, and without it every file shreds into garbage rows.

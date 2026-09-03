@@ -73,6 +73,16 @@ def norm(s):
     return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
+# "T1 - SHERIDAN" / "T2 - GOYER" -- the marker on a by-concept table.
+CONCEPT_RE = re.compile(r"^T[12]\s*-\s*(SHERIDAN|GOYER)$", re.I)
+
+# Why a [SYN] cell is empty. Written into the row label so the file explains
+# itself; previously a blank could mean any of these and the reader could not
+# tell which.
+R_NO_CUT = "no comparable cut"
+R_NO_QUESTION = "question not in crosswalk"
+R_NO_BASE = "no personas in base"
+
 OPT_RE = re.compile(r"^\s*\d+\.\s*(\d+)\.\s*(.*)$")
 OPT_FALLBACK = re.compile(r"^\s*(\d+)\.\s*(.*)$")
 
@@ -123,7 +133,13 @@ def our_data(vl):
             best[k] = (is_x, sel)
     resp = {k: v[1] for k, v in best.items()}
     cuts = vl.build_cuts(personas, {k: vl.primary_code(v) for k, v in resp.items()})
-    return personas, resp, cuts
+    # group_name carries the concept: '3-ARENA-FF-G-test-...' / '...-S-...'.
+    # Needed for the by-concept tables (47/48), which split POSTINT by creative
+    # rather than by a battery item.
+    creative = {a: ("Goyer" if "-G-" in (r.get("group_name") or "") else
+                    "Sheridan" if "-S-" in (r.get("group_name") or "") else None)
+                for a, r in personas.items()}
+    return personas, resp, cuts, creative
 
 
 def main():
@@ -132,17 +148,27 @@ def main():
 
     src = [r for r in csv.reader(open(WTABS, encoding=ENC, newline=""))]
     vl = load_vl()
-    personas, resp, cuts = our_data(vl)
+    personas, resp, cuts, creative = our_data(vl)
 
     colmap = {(cn, cv): (wg, wc) for wg, wc, cn, cv in vl.PAIRS}
     colmap[("TOTAL", "Total")] = ("", "Total")
     rev = {v: k for k, v in colmap.items()}          # their column -> our cut
 
     # crosswalk: (wtab_meta, wtab_item) -> our (meta, question_text)
-    xw = {}
+    #
+    # 'concept' rows are loaded alongside 'question' rows. Tables 47/48 are
+    # POSTINT split by creative -- their marker names the concept ("T1 -
+    # SHERIDAN"), not a battery item -- so they resolve to the same question as
+    # any other POSTINT table and are then restricted to that creative. Loading
+    # only 'question' is why those two tables rendered blank.
+    xw, concept_of = {}, {}
     for r in csv.DictReader(open(CROSSWALK, encoding="utf-8")):
-        if r["target_class"] == "question":
+        if r["target_class"] in ("question", "concept"):
             xw[(r["wtab_meta"], r["wtab_item"])] = (r["our_meta"], r["question_text"])
+        if r["target_class"] == "concept":
+            m = CONCEPT_RE.match(r["wtab_item"])
+            if m:
+                concept_of[(r["wtab_meta"], r["wtab_item"])] = m.group(1).title()
 
     tables = {(t["banner"], int(t["table_no"])): t
               for t in csv.DictReader(open(TABLES, encoding="utf-8"))
@@ -157,6 +183,7 @@ def main():
 
     out = []
     covered = skipped = 0
+    unbuildable = set()          # banner columns we have no equivalent cut for
 
     for n, (tno, start) in enumerate(marks):
         end = marks[n + 1][1] - 1 if n + 1 < len(marks) else len(src)
@@ -186,17 +213,47 @@ def main():
         marker = meta_row["marker"]
         wmeta = meta_row["meta"]
 
+        # A NET row is a roll-up of the INDENTED rows that follow it:
+        #
+        #     NET: Weekly/Monthly   61%
+        #       Every week          12%
+        #       Every month         49%
+        #
+        # The old code matched the literal label "NET: Weekly/Monthly" against
+        # our option labels, found nothing, and wrote 0% -- a confident wrong
+        # number, not a gap. Table 5 read -61 where the truth is about -31.
+        # Membership is structural (leading whitespace), so read it from the
+        # source rather than hardcoding which options belong to which NET.
+        net_members, cur = {}, None
+        for i in range(base_idx + 1, end):
+            raw = src[i][0] if src[i] else ""
+            if not raw.strip() or raw.strip().upper() == "SIGMA":
+                cur = None
+                continue
+            if raw.strip().upper().startswith("NET:"):
+                cur = raw.strip()
+                net_members[cur] = []
+            elif cur and raw[:1].isspace():
+                net_members[cur].append(raw.strip())
+            else:
+                cur = None
+
+        # Tables 47/48 split POSTINT by concept, so restrict to that creative.
+        want_creative = concept_of.get((wmeta, marker))
+
         # Which of our questions does each row of this table correspond to?
         #   distribution -> one question, rows are its options
         #   summary      -> one metric, each ROW is a different question (item)
+        # optfor returns a LIST of option labels: a plain row matches one, a NET
+        # row matches the union of its members.
         if layout == "summary":
             metric = re.sub(r"\s*Summary Table\s*$", "", marker).strip().strip("'")
             qfor = lambda row_label: xw.get((wmeta, row_label))
-            optfor = lambda row_label: metric
+            optfor = lambda row_label: [metric]
         else:
             q = xw.get((wmeta, marker))
             qfor = lambda row_label: q
-            optfor = lambda row_label: row_label
+            optfor = lambda row_label: net_members.get(row_label.strip()) or [row_label]
 
         # --- emit the block, copying every structural row verbatim ---------
         out.append(["#page"])
@@ -204,22 +261,30 @@ def main():
             out.append(list(src[i]))
 
         def ours_for(row_label, colidx):
-            """our % for this row in this banner column, or '' if unmappable."""
+            """(percent, base_n, reason) for this row in this banner column.
+
+            percent is None when we cannot produce a number; reason then says
+            why, so a blank cell is never mistaken for a measured zero.
+            """
             key = rev.get((groups[colidx], labels[colidx]))
             if key is None:
-                return None, None
+                return None, None, R_NO_CUT
             target = qfor(row_label)
             if target is None:
-                return None, None
+                return None, None, R_NO_QUESTION
             meta, qtext = target
             members = [a for a in personas
-                       if key in cuts[a] and resp.get((a, meta, qtext))]
+                       if key in cuts[a] and resp.get((a, meta, qtext))
+                       and (want_creative is None or creative[a] == want_creative)]
             if not members:
-                return None, None
-            want = norm(optfor(row_label))
+                return None, None, R_NO_BASE
+            # Union over the row's labels: one for a plain row, several for a
+            # NET. Correct for multi-punch too, where members can overlap.
+            want = {norm(x) for x in optfor(row_label)}
             hit = sum(1 for a in members
-                      if any(norm(lab) == want for _, lab in parse_options(resp[(a, meta, qtext)])))
-            return hit / len(members), len(members)
+                      if any(norm(lab) in want
+                             for _, lab in parse_options(resp[(a, meta, qtext)])))
+            return hit / len(members), len(members), None
 
         # base row: theirs verbatim, ours beneath
         their_base = list(src[base_idx])
@@ -232,7 +297,8 @@ def main():
             key = rev.get((groups[c], labels[c]))
             if key is None:
                 continue
-            n_members = sum(1 for a in personas if key in cuts[a])
+            n_members = sum(1 for a in personas if key in cuts[a]
+                            and (want_creative is None or creative[a] == want_creative))
             syn_base[c] = str(n_members)
             any_col = True
         out.append(syn_base)
@@ -250,14 +316,19 @@ def main():
             if lab.upper() == "SIGMA":
                 out.append(list(src[i]))
                 continue
-            syn = [f"{lab} [SYN]"] + [""] * (width - 1)
+            syn = [""] * width
             hum = [f"{lab} [HUM]"] + [cell(src[i], c) for c in range(1, width)]
-            gap = [f"{lab} [GAP]"] + [""] * (width - 1)
+            gap = [""] * width
+            reasons = set()
             for c in range(1, width):
                 if not labels[c]:
                     continue
-                p, _ = ours_for(lab, c)
+                p, _, why = ours_for(lab, c)
                 if p is None:
+                    if why == R_NO_CUT:
+                        unbuildable.add((groups[c], labels[c]))
+                    else:
+                        reasons.add(why)
                     continue
                 syn[c] = f"{p * 100:.0f}%"
                 t = cell(src[i], c)
@@ -267,13 +338,34 @@ def main():
                 elif t.strip() in ("0", "0 "):
                     gap[c] = f"{p * 100:+.0f}"
                 emitted = True
+            # A row that produced nothing says why, in its own label. A blank
+            # used to mean "no cut", "no question" or "no base" indifferently.
+            note = f" — {'; '.join(sorted(reasons))}" if reasons and not any(syn[1:]) else ""
+            syn[0] = f"{lab} [SYN]{note}"
+            gap[0] = f"{lab} [GAP]"
             out.extend([syn, hum, gap])
         if emitted:
             covered += 1
 
+    # Legend first, so the file explains its own gaps without a reader having
+    # to come back and ask. Columns are listed once here rather than marked in
+    # every cell, which would bury the numbers under thousands of markers.
+    legend = [
+        ["# Synthetic vs human banner — W-Tabs Banner 1 print layout"],
+        ["# [SYN] ours   [HUM] human study (N=800)   [GAP] ours minus theirs, in points"],
+        ["# A [SYN] row that produced no numbers carries the reason in its label."],
+        ["# NET: rows are the union of their indented member rows, not a literal label."],
+    ]
+    if unbuildable:
+        legend.append([f"# {len(unbuildable)} banner columns have no comparable cut on our side "
+                       "— their [SYN] cells are empty by design:"])
+        for g, l in sorted(unbuildable):
+            legend.append([f"#     {g} / {l}" if g else f"#     {l}"])
+    legend.append([])
+
     os.makedirs("out", exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="") as fh:
-        csv.writer(fh).writerows(out)
+        csv.writer(fh).writerows(legend + out)
     print(f"Wrote {OUT}  ({len(out):,} rows, {covered} tables with our numbers)")
     print("  Row labels carry [SYN] ours / [HUM] human study / [GAP] difference in points.")
     print("  Blank [SYN] cells are banner columns we cannot build — visible by design.")

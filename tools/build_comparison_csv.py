@@ -136,6 +136,36 @@ def our_side(vl):
     return personas, resp, cuts
 
 
+def in_question_base(vl, personas, resp, meta, qtext, aid):
+    """
+    Mirrors the base rules in sql/30_fct_response.sql and sql/43.
+
+    The synthetic panel ignored the questionnaire's routing entirely (F11) -- every
+    persona answered every question -- so the rules have to be reapplied here or
+    a banner base means nothing.
+
+    Only the two rules that actually change a base on Banner 1 are implemented,
+    and each is asserted against the human study's own base:
+
+      POLORIENT   the questionnaire does not ask political orientation of
+                  under-18s (`_age_band != '13-17'`), so the base is 338, not
+                  398.
+      ACTIVITIES  F10 -- punch 6 'Never' is a screen-out on the theatre item,
+                  so that answer leaves the base rather than counting in it.
+                  Base 396.
+
+    ELEMENT2 is gated too (base 347) but sits in a summary table whose rows do
+    not reach this join, so it is not needed here. Adding it would be dead code
+    that looks load-bearing.
+    """
+    if meta == "POLORIENT":
+        age = vl.age_band(personas[aid].get("archetype_age_range"))
+        return age is not None and age >= 18
+    if meta == "ACTIVITIES" and "theat" in (qtext or "").lower():
+        return vl.primary_code(resp[(aid, meta, qtext)]) != 6
+    return True
+
+
 def their_side():
     """(table_no, banner_group, banner_col, row_label) -> (freq, pct, base)."""
     out = {}
@@ -222,8 +252,16 @@ def main():
 
         for (cn, cv), (wg, wc) in colmap.items():
             members = [a for a in personas if (cn, cv) in cuts[a]]
-            # base: members who answered this question at all
-            answered = [a for a in members if resp.get((a, meta, qtext))]
+            # base: members who answered this question AND belong in its base.
+            #
+            # The base rules are not optional. Without them this file disagreed
+            # with mart_banner_wtab on 196 cells -- 144 POLORIENT and 52
+            # ACTIVITIES -- because the denominators were inflated. Their
+            # numbers matched exactly; only ours were wrong, and the warehouse
+            # was right. See in_question_base() above.
+            answered = [a for a in members
+                        if resp.get((a, meta, qtext))
+                        and in_question_base(vl, personas, resp, meta, qtext, a)]
             if not answered:
                 continue
             counts, labels = defaultdict(int), {}

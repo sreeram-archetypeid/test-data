@@ -136,3 +136,54 @@ files remain lossy and it is worth raising upstream.
 - `aat_top_box_category` as a correction to POSTINT. It is a model-emitted
   diagnostic rather than a persona's answer, and its levels include a 5-point
   midpoint word this study has no scale for. See `tools/compare_aat_postint.py`.
+
+## The warehouse twin, and the check it made possible
+
+`sql/44_ref_wtabs.sql` lands the human study as three joinable tables
+(`ref_wtabs` 99,231 cells, `ref_wtab_tables` 152, `ref_wtab_crosswalk` 340) and
+`sql/50_mart_validation.sql` joins them to `mart_banner_wtab`. Build both with:
+
+```
+./tools/validate_banners.sh          # 6 gates
+./tools/validate_banners.sh --dry-run
+```
+
+`mart_validation` is grained by `(question_key, cut_name, cut_value,
+option_label, wtab_layout)`. The layout is part of the grain because **a cell
+can have two human sources**: ACTIVITIES "play video games" × "Every week" is
+printed both in that item's own per-item table and in the "Every week" summary
+table. 2,105 cells are duplicated that way and **all 2,105 agree to the printed
+digit**, which makes the duplication a free consistency check on their file
+rather than a defect in ours. Deduplicating would have discarded that check.
+
+### Why two implementations, and what it caught
+
+The local Python build and the warehouse SQL compute the same comparison from
+the same sources while sharing no code. That redundancy is the point, and it
+earned its keep: the two disagreed on **196 cells** — 144 POLORIENT and 52
+ACTIVITIES. Their numbers matched exactly; only ours differed.
+
+The warehouse was right. `tools/build_comparison_csv.py` was not applying the
+questionnaire's base rules at all, so its denominators were inflated:
+
+- **POLORIENT** is not asked of under-18s, so its base is **338**, not 398.
+- **ACTIVITIES / theatre** screens out punch 6 "Never" (F10), so its base is
+  **396**.
+
+Both are now applied locally too, and the two implementations agree on **all
+10,090 overlapping cells, ours and theirs, to six decimal places**. That is
+Gate 6, and it is the single strongest piece of evidence that the pipeline is
+correct.
+
+```sql
+-- the comparison, sanity-checked in one query
+SELECT comparability, status, COUNT(*) AS cells
+FROM `<project>.ff_30_marts.mart_validation`
+GROUP BY 1, 2 ORDER BY 1, 3 DESC;
+```
+
+`status` buckets a cell by how far apart the two sides are — `within rounding`
+(≤1pp, inside their integer printing), `close` (≤5pp), `diverges` (≤15pp),
+`incomparable` (>15pp). Read it alongside `comparability`: a behavioural column
+reading `incomparable` is expected and means the two sides hold a different kind
+of group, not that a number is wrong.

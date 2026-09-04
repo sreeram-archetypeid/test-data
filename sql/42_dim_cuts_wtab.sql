@@ -5,7 +5,8 @@
 -- PLAN's columns: GENDER / AGE / RACE / INCOME / RELATIONSHIP / PARENT plus four
 -- top-box families. The W-Tabs banner is a different set — QUADRANTS, AGE
 -- BREAKOUT, MEN AGE DETAIL, FATAL FURY FAMILIARITY, FATAL FURY FANSHIP, GENRE
--- FANS, ETHNICITY on quota definitions, GAMING, MOVIEGOING and POSTINT — and the
+-- FANS, ETHNICITY on quota definitions, REGION, GAMING, MOVIEGOING and POSTINT —
+-- and the
 -- two overlap only on gender. Neither is a superset, so this sits alongside
 -- sql/40 rather than replacing it.
 --
@@ -98,7 +99,8 @@ a AS (
       WHEN d.race_banner IN ('Hispanic')          THEN 'Hispanic/Latino'
       WHEN d.race_banner IN ('African American')  THEN 'AA/Black'
       ELSE 'Caucasian/Asian/Other'
-    END                                                          AS ethnicity_w
+    END                                                          AS ethnicity_w,
+    d.region_banner
   FROM `${PROJECT_ID}.${DS_CUR}.dim_archetype` AS d
 )
 
@@ -119,6 +121,21 @@ FROM (
     STRUCT('AGE BREAKOUT',   a.age_w,                                  'demographic'),
     STRUCT('MEN AGE DETAIL', IF(a.gender_w = 'Men', CONCAT('Men ', a.age_w), NULL), 'demographic'),
     STRUCT('ETHNICITY',      a.ethnicity_w,                            'demographic'),
+
+    -- REGION (ZIP) is the banner's own column name, but the value comes from
+    -- dim_archetype.region_banner, which is derived from the STATED LOCATION
+    -- and never from the zip answer. The delivered zips are corrupt in two
+    -- different ways -- ~150 lost a trailing digit (3030 = Atlanta,
+    -- 8020 = Denver) and ~41 lost a leading zero (2108 = Boston,
+    -- 7102 = Newark) -- so no single repair rule is right, and padding produces
+    -- real-but-wrong Northeast zips that nothing downstream would flag.
+    -- Measured: as-is 78.3%, zero-padded 25.6%, against a 100%-accurate
+    -- five-digit control. See tools/regions.py.
+    --
+    -- 'demographic': all four regions land within 1.4pp of their Table 3.
+    -- NULL for the 9 personas whose archetype_location is empty; the STRUCT is
+    -- dropped by the WHERE below rather than becoming a phantom column.
+    STRUCT('REGION',         a.region_banner,                          'demographic'),
 
     -- VGFRAN1 Fatal Fury: 1 know a lot, 2 a little, 3 heard of, 4 never heard.
     -- Labels verified verbatim identical to the W-Tabs' own row labels.

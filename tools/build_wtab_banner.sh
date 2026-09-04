@@ -29,9 +29,12 @@ q() { python3 tools/bq_query.py --format tsv -e "$1" | tail -n +2; }
 
 # Every expectation below was MEASURED from the built tables, never guessed --
 # the repo's standing rule. A red gate means the pipeline changed.
-EXPECT_CUT_ROWS=6238
+# 6238 rows / 13 families before REGION. +389 is one region membership per
+# persona whose archetype_location resolves; the 9 that do not are empty
+# strings and correctly get no REGION row rather than a phantom column.
+EXPECT_CUT_ROWS=6627
 EXPECT_CUT_PERSONAS=398
-EXPECT_CUT_FAMILIES=13
+EXPECT_CUT_FAMILIES=14
 # 81 before section 1.4; +4 for AGE, ZIPCODE, GENDER, INCOME. Re-measured after
 # the rebuild, not adjusted to make the gate pass -- the gate caught the change,
 # which is what it is for.

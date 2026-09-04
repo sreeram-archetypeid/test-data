@@ -24,6 +24,9 @@
 --      and understates Goyer. Enforced in scoped_cr below, and re-asserted as a
 --      gate in tools/build_wtab_banner.sh.
 --
+--   3a. AGE and INCOME gain BANDED option rows, and ZIPCODE loses its
+--      meaningless mean. See the `banded` CTE.
+--
 --   3. PER-OPTION rows now cover ordinal_scale as well as multi_select and
 --      categorical. This is the change that makes the table able to reproduce a
 --      W-Tabs page at all, and it is worth being precise about why.
@@ -129,7 +132,13 @@ agg AS (
       IF(metric_kind = 'ordinal_scale', SAFE_DIVIDE(COUNTIF(is_b2b), COUNT(*)), NULL) AS b2b_pct,
       IF(metric_kind = 'ordinal_scale',
          AVG(IF(primary_code < 90, primary_code, NULL)), NULL) AS mean_score,
-      IF(metric_kind = 'numeric_rating', AVG(rating_value), NULL) AS mean_rating,
+      -- ZIPCODE is q_type 2, so it classifies as numeric_rating and an
+      -- ungated AVG produces a MEAN ZIP CODE -- a confident number with no
+      -- meaning at all, sitting in the mart next to real ones. AGE and INCOME
+      -- are also numeric_rating and their means ARE meaningful, so this is
+      -- excluded by name rather than by kind.
+      IF(metric_kind = 'numeric_rating' AND meta != 'ZIPCODE',
+         AVG(rating_value), NULL) AS mean_rating,
       IF(meta = 'ACTIVITIES' AND question_text LIKE '%theater%',
          SAFE_DIVIDE(COUNTIF(primary_code IN (1, 2, 3)), COUNT(*)), NULL) AS t3b_pct
     FROM cut
@@ -177,7 +186,88 @@ opt AS (
   UNNEST(c.selected_options) AS o
   WHERE c.metric_kind IN ('multi_select', 'categorical', 'ordinal_scale')
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+),
+-- Banded option rows for the two numeric questions that ARE tabulated.
+--
+-- AGE and INCOME arrive as q_type 2, so they classify as numeric_rating and the
+-- agg block above gives them a mean and nothing else. A banner needs a
+-- distribution, so each is cut into the human study's own bands (W-Tabs
+-- Table 1 and Table 76) and emitted as PCT_OF_BASE rows, which is what makes
+-- those two pages reproducible at all.
+--
+-- The bands are the HUMAN study's labels verbatim, so a row joins to theirs on
+-- the label. They are a presentation choice about how to compare, not a
+-- property of our data, which is why they live in the mart and not in
+-- dim_question_option.
+--
+-- ZIPCODE is deliberately absent. Its rows in the human banner are the four
+-- Census regions, and region is carried as a CUT (from the stated location, not
+-- from the corrupt zip -- see sql/42), never as an answer distribution.
+--
+-- option_code is a band ordinal, not a scale point. Safe here because
+-- metric_kind stays numeric_rating, so no box metric or MEAN is ever computed
+-- over it.
+banded AS (
+  SELECT
+    base_kind, creative, meta, question_text, question_key, metric_kind,
+    cut_name, cut_value, comparability,
+    'PCT_OF_BASE' AS metric_name,
+    band_code     AS option_code,
+    band_label    AS option_label,
+    COUNT(*)      AS n,
+    SAFE_DIVIDE(COUNT(*), MAX(cut_base_n)) AS value
+  FROM (
+    SELECT
+      c.*,
+      COUNT(*) OVER (
+        PARTITION BY base_kind, creative, question_key, cut_name, cut_value
+      ) AS cut_base_n,
+      CASE
+        WHEN c.meta = 'AGE' THEN CASE
+          WHEN c.rating_value BETWEEN 13 AND 17 THEN 1
+          WHEN c.rating_value BETWEEN 18 AND 24 THEN 2
+          WHEN c.rating_value BETWEEN 25 AND 29 THEN 3
+          WHEN c.rating_value BETWEEN 30 AND 34 THEN 4
+          WHEN c.rating_value BETWEEN 35 AND 39 THEN 5
+          WHEN c.rating_value BETWEEN 40 AND 44 THEN 6
+          WHEN c.rating_value BETWEEN 45 AND 54 THEN 7
+          WHEN c.rating_value BETWEEN 55 AND 64 THEN 8
+        END
+        WHEN c.meta = 'INCOME' THEN CASE
+          WHEN c.rating_value <  20000 THEN 1
+          WHEN c.rating_value <  40000 THEN 2
+          WHEN c.rating_value <  70000 THEN 3
+          WHEN c.rating_value < 100000 THEN 4
+          ELSE 5
+        END
+      END AS band_code,
+      CASE
+        WHEN c.meta = 'AGE' THEN CASE
+          WHEN c.rating_value BETWEEN 13 AND 17 THEN '13-17'
+          WHEN c.rating_value BETWEEN 18 AND 24 THEN '18-24'
+          WHEN c.rating_value BETWEEN 25 AND 29 THEN '25-29'
+          WHEN c.rating_value BETWEEN 30 AND 34 THEN '30-34'
+          WHEN c.rating_value BETWEEN 35 AND 39 THEN '35-39'
+          WHEN c.rating_value BETWEEN 40 AND 44 THEN '40-44'
+          WHEN c.rating_value BETWEEN 45 AND 54 THEN '45-54'
+          WHEN c.rating_value BETWEEN 55 AND 64 THEN '55-64'
+        END
+        WHEN c.meta = 'INCOME' THEN CASE
+          WHEN c.rating_value <  20000 THEN 'Under $20,000'
+          WHEN c.rating_value <  40000 THEN '$20,000-$39,999'
+          WHEN c.rating_value <  70000 THEN '$40,000-$69,999'
+          WHEN c.rating_value < 100000 THEN '$70,000-$99,999'
+          ELSE '$100,000 or more'
+        END
+      END AS band_label
+    FROM cut AS c
+    WHERE c.meta IN ('AGE', 'INCOME') AND c.rating_value IS NOT NULL
+  )
+  WHERE band_code IS NOT NULL
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
 )
 SELECT * FROM agg
 UNION ALL
-SELECT * FROM opt;
+SELECT * FROM opt
+UNION ALL
+SELECT * FROM banded;

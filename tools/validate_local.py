@@ -190,6 +190,7 @@ def find_q(resp, meta, needle):
 def build_cuts(personas, resp):
     """persona -> {(cut_name, cut_value)}, in the W-Tabs' banner shape."""
     ff1 = find_q(resp, "VGFRAN1", "Fatal Fury")
+    ff2 = find_q(resp, "VGFRAN2", "Fatal Fury")
     gfan = {g: find_q(resp, "GFAN1", g) for g in ("Action", "Martial Arts", "Anime")}
     games = find_q(resp, "ACTIVITIES", "play video games")
     theatre = find_q(resp, "ACTIVITIES", "see movies in a theat")
@@ -229,6 +230,24 @@ def build_cuts(personas, resp):
                             3: "Heard of", 4: "Never Heard of"}.get(c, "?")))
             cuts[aid].add(("FF FAMILIARITY",
                            "Total Know" if c in (1, 2) else "Non-Players"))
+
+        # VGFRAN2 Fatal Fury fanship: 1 very much, 2 somewhat, 3 not at all.
+        # Labels verified verbatim against the W-Tabs' own column headers.
+        #
+        # Their bases are 99 / 185 / 211, summing to 495 rather than 800,
+        # because the column is routed (P3 DOWN @ VGFRAN2 -- only people who had
+        # heard of the franchise were asked). Ours sum to 398 because the
+        # synthetic panel ignored the questionnaire's routing entirely (F11), so
+        # these columns compare directionally only -- hence 'behavioural'.
+        c = resp.get((aid, "VGFRAN2", ff2)) if ff2 else None
+        if c:
+            cuts[aid].add(("FF FANSHIP",
+                           {1: "Very Much Fan", 2: "Somewhat Fan",
+                            3: "Not a Fan"}.get(c, "?")))
+            # Their own net: Total Fans = punches 1-2. Confirmed arithmetically
+            # against their bases (99 + 185 = 284).
+            if c in (1, 2):
+                cuts[aid].add(("FF FANSHIP", "Total Fans"))
 
         for label, q in gfan.items():
             if q and resp.get((aid, "GFAN1", q)) == 1:
@@ -306,6 +325,10 @@ PAIRS = [
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Never Heard of", "FF FAMILIARITY", "Never Heard of"),
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Total Know", "FF FAMILIARITY", "Total Know"),
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Non-Players", "FF FAMILIARITY", "Non-Players"),
+    ("FATAL FURY FANSHIP (P3 DOWN @ VGFRAN2)", "Very Much Fan", "FF FANSHIP", "Very Much Fan"),
+    ("FATAL FURY FANSHIP (P3 DOWN @ VGFRAN2)", "Somewhat Fan",  "FF FANSHIP", "Somewhat Fan"),
+    ("FATAL FURY FANSHIP (P3 DOWN @ VGFRAN2)", "Total Fans",    "FF FANSHIP", "Total Fans"),
+    ("FATAL FURY FANSHIP (P3 DOWN @ VGFRAN2)", "Not a Fan",     "FF FANSHIP", "Not a Fan"),
     ("REGION (ZIP)", "Northeast", "REGION", "Northeast"),
     ("REGION (ZIP)", "Midwest", "REGION", "Midwest"),
     ("REGION (ZIP)", "South", "REGION", "South"),

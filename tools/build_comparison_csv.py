@@ -109,7 +109,7 @@ def our_side(vl):
     # full option list and labels.
     import glob
     rows = []
-    for path in sorted(glob.glob(vl.CSV_GLOB)):
+    for path in sorted(p for g in vl.CSV_GLOBS for p in glob.glob(g)):
         is_x = "2.1X" in os.path.basename(path)
         with open(path, encoding="utf-8-sig", newline="") as fh:
             rd = csv.DictReader(fh)

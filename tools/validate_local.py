@@ -61,6 +61,22 @@ CSV_GLOBS = [
 ]
 CELLS_PATH = "ref/wtabs_cells.csv"
 
+
+def _load_regions():
+    """tools/regions.py -- shared with the SQL generator so the two cannot
+    drift. Region comes from the stated location, never from the zip; see that
+    module for the measurement that settles it."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "regions", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "regions.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+REGIONS = _load_regions()
+
 EXPECTED_PERSONAS = 398
 EXPECTED_FACT_ROWS = 41770          # Gate 4: 40,178 in sections 2.x + 1,592 in 1.4
 
@@ -196,6 +212,15 @@ def build_cuts(personas, resp):
                 cuts[aid].add(("MEN AGE DETAIL", f"Men {band}"))
         cuts[aid].add(("ETHNICITY", wtab_ethnicity(p.get("archetype_race"))))
 
+        # REGION (ZIP) is the banner's own column family, but region is derived
+        # from archetype_location, NOT from the zip answer -- the delivered zips
+        # lost a trailing digit in ~150 cases and a leading zero in ~41, so no
+        # single repair rule is right and padding fabricates real-but-wrong
+        # zips. Resolves 389 of 398; the 9 misses are empty location strings.
+        rg = REGIONS.region_of(p.get("archetype_location"))[0]
+        if rg:
+            cuts[aid].add(("REGION", rg))
+
         # Fatal Fury familiarity: 1 know a lot, 2 a little, 3 heard of, 4 never.
         c = resp.get((aid, "VGFRAN1", ff1)) if ff1 else None
         if c:
@@ -281,6 +306,10 @@ PAIRS = [
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Never Heard of", "FF FAMILIARITY", "Never Heard of"),
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Total Know", "FF FAMILIARITY", "Total Know"),
     ("FATAL FURY FAMILIARITY (P3 DOWN @ VGFRAN1)", "Non-Players", "FF FAMILIARITY", "Non-Players"),
+    ("REGION (ZIP)", "Northeast", "REGION", "Northeast"),
+    ("REGION (ZIP)", "Midwest", "REGION", "Midwest"),
+    ("REGION (ZIP)", "South", "REGION", "South"),
+    ("REGION (ZIP)", "West", "REGION", "West"),
     ("GENRE FANS (P1 @ GFAN1)", "Action", "GENRE FANS", "Action"),
     ("GENRE FANS (P1 @ GFAN1)", "Martial Arts", "GENRE FANS", "Martial Arts"),
     ("GENRE FANS (P1 @ GFAN1)", "Anime", "GENRE FANS", "Anime"),

@@ -52,6 +52,7 @@ rather than being silently flattened to low = high.
 """
 
 import csv
+import importlib.util
 import os
 import re
 import sys
@@ -84,8 +85,21 @@ def attribute_names():
     return base
 
 
+def load_regions():
+    """tools/regions.py -- shared with the local comparison tools so the SQL
+    and the Python cannot drift apart."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location("regions",
+                                                  os.path.join(here, "regions.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
 def render():
     attrs = attribute_names()
+    regions = load_regions()
+    region_case = regions.sql_case("archetype_location", indent="  ")
     cols = ",\n".join(f"    {c}" for c in attrs)
 
     arms = "\n  UNION DISTINCT\n".join(
@@ -125,9 +139,52 @@ parsed AS (
       ) AS INT64
     ) AS income_second_usd
   FROM attrs
+),
+-- Exact income, as ANSWERED in section 1.4. The attribute column carries a
+-- banded range ('$75,000-$99,999'), and F6 records the eight shapes it comes
+-- in; this is the actual figure, so the midpoint convention below stops being
+-- load-bearing for anything that uses income_exact_usd.
+--
+-- Read from staging rather than raw: the unpivot has already resolved which
+-- Q{{n}} block holds INCOME, and that position is not stable across files.
+s14_income AS (
+  SELECT archetype_id, CAST(MAX(rating_value) AS INT64) AS income_exact_usd
+  FROM `${{PROJECT_ID}}.${{DS_STG}}.stg_response`
+  WHERE section_code = '1.4' AND meta = 'INCOME' AND rating_value IS NOT NULL
+  GROUP BY archetype_id
 )
 SELECT
   p.*  EXCEPT(income_first_usd, income_second_usd),
+  i.income_exact_usd,
+
+  -- Region, derived from the STATED LOCATION and never from the zip code.
+  --
+  -- The delivered zips are lossy in two different ways: ~150 lost a trailing
+  -- digit (3030 = Atlanta, 8020 = Denver) and ~41 lost a leading zero
+  -- (2108 = Boston, 7102 = Newark). Zero-padding everything is right for the
+  -- second group and wrong for the first, and it fails loudly nowhere -- 03030
+  -- is a real New Hampshire zip. Measured against each persona's own stated
+  -- location, with the 182 five-digit zips as a 100%-accurate control:
+  -- as-is 78.3%, zero-padded 25.6%. So the zip is kept verbatim as provenance
+  -- and is not used here. See tools/regions.py for the full measurement.
+  --
+  -- This derivation resolves 389 of 398 (the 9 failures are empty strings) and
+  -- lands all four regions within 1.4pp of the human study's Table 3.
+  -- Generated from tools/regions.py -- do not hand-edit the CASE below.
+{region_case} AS region_banner,
+
+  -- The human study's own five income bands (W-Tabs Table 76), so the banner
+  -- table can be compared row for row. Distinct from income_band_banner
+  -- below, which implements the banner PLAN's three bands and is what
+  -- sql/40_dim_archetype_cuts.sql reads.
+  CASE
+    WHEN i.income_exact_usd IS NULL     THEN NULL
+    WHEN i.income_exact_usd <  20000    THEN 'Under $20,000'
+    WHEN i.income_exact_usd <  40000    THEN '$20,000-$39,999'
+    WHEN i.income_exact_usd <  70000    THEN '$40,000-$69,999'
+    WHEN i.income_exact_usd < 100000    THEN '$70,000-$99,999'
+    ELSE '$100,000 or more'
+  END AS income_band_wtab,
 
   'READ' AS modality,
 
@@ -223,7 +280,8 @@ SELECT
     ELSE '$125K+'
   END AS income_band_banner
 
-FROM parsed p;
+FROM parsed p
+LEFT JOIN s14_income i USING (archetype_id);
 """
 
 

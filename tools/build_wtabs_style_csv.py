@@ -73,6 +73,66 @@ def norm(s):
     return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
+# ---------------------------------------------------------------------------
+# The six demographic tables
+# ---------------------------------------------------------------------------
+# Tables 1 (AGE), 2 (GENDER), 3 (ZIPCODE), 4 (ETHNICITY), 75 (EDU) and
+# 76 (INCOME) rendered blank because their rows are not answer options in our
+# model. Three are now real answers (section 1.4) and three are persona
+# attributes; both are tabulated here, and the [SYN] label says which, because
+# an attribute is not something a persona was asked.
+#
+# ZIPCODE's rows are the four Census regions, and region is derived from the
+# STATED LOCATION, never from the zip -- see tools/regions.py for why (the
+# delivered zips lost a trailing digit in ~150 cases and a leading zero in ~41,
+# so no single repair rule is correct and padding fabricates real-but-wrong
+# zips). Attribute-derived, because the personas were never asked their region.
+
+AGE_BANDS = [(13, 17, "13-17"), (18, 24, "18-24"), (25, 29, "25-29"),
+             (30, 34, "30-34"), (35, 39, "35-39"), (40, 44, "40-44"),
+             (45, 54, "45-54"), (55, 64, "55-64")]
+
+INCOME_BANDS = [(0, 19999, "Under $20,000"), (20000, 39999, "$20,000-$39,999"),
+                (40000, 69999, "$40,000-$69,999"),
+                (70000, 99999, "$70,000-$99,999"),
+                (100000, 10**9, "$100,000 or more")]
+
+# Our vocabulary -> the human study's own row label. 'Latico / Hispanic' is a
+# typo in the source affecting one persona; mapped rather than lost.
+ETHNICITY_MAP = {
+    "white / caucasian": "Caucasian",
+    "latino / hispanic": "Hispanic",
+    "latico / hispanic": "Hispanic",
+    "black / african american": "Af-Am",
+    "asian or pacific islander": "Asian/Other",
+    "asian / pacific islander": "Asian/Other",
+}
+
+# 'ged' and 'secondary_education' both land on 'High School graduate': a GED is
+# a high-school equivalency and the human questionnaire offers no separate row.
+EDU_MAP = {
+    "primary_education": "Some High School or less",
+    "ged": "High School graduate",
+    "secondary_education": "High School graduate",
+    "vocational_qualification": "Community College/Associate's Degree",
+    "bachelors_degree": "4 Year University/Bachelor's Degree",
+    "master_degree": "Master's degree",
+    "doctorate_higher": "Doctorate degree",
+}
+
+# meta -> whether its values come from an ANSWER or a persona ATTRIBUTE
+DERIVED_SOURCE = {"AGE": "answer", "GENDER": "answer", "INCOME": "answer",
+                  "ZIPCODE": "attribute", "ETHNICITY": "attribute",
+                  "EDU": "attribute"}
+
+
+def band(value, bands):
+    for lo, hi, label in bands:
+        if lo <= value <= hi:
+            return label
+    return None
+
+
 # "T1 - SHERIDAN" / "T2 - GOYER" -- the marker on a by-concept table.
 CONCEPT_RE = re.compile(r"^T[12]\s*-\s*(SHERIDAN|GOYER)$", re.I)
 
@@ -98,6 +158,14 @@ def parse_options(selected):
     return out
 
 
+def load_regions():
+    spec = importlib.util.spec_from_file_location(
+        "regions", os.path.join(HERE, "regions.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
 def load_vl():
     spec = importlib.util.spec_from_file_location("vl", os.path.join(HERE, "validate_local.py"))
     m = importlib.util.module_from_spec(spec)
@@ -109,8 +177,8 @@ def load_vl():
 def our_data(vl):
     """personas, raw selections reduced to the primary run, and cut membership."""
     import glob
-    personas, rows = {}, []
-    for path in sorted(glob.glob(vl.CSV_GLOB)):
+    personas, rows, ratings = {}, [], {}
+    for path in sorted(p for g in vl.CSV_GLOBS for p in glob.glob(g)):
         is_x = "2.1X" in os.path.basename(path)
         with open(path, encoding="utf-8-sig", newline="") as fh:
             rd = csv.DictReader(fh)
@@ -120,12 +188,24 @@ def our_data(vl):
                 aid = row.get("archetype_id")
                 if not aid:
                     continue
+                # 1.4 rows carry 80 attribute columns against 2.x's 46, the 46
+                # being a strict prefix, so whichever is seen first is safe.
                 personas.setdefault(aid, row)
                 for i in idxs:
                     q = row.get(f"Q{i}_question")
                     if q and q.strip():
                         rows.append((aid, row.get(f"Q{i}_meta"), q, is_x,
                                      row.get(f"Q{i}_selected")))
+                    # AGE / ZIPCODE / INCOME are q_type 2: the value is in
+                    # `rating`, not `selected`, so the option path never sees
+                    # them. Keyed by meta alone -- each appears once per persona.
+                    rv = (row.get(f"Q{i}_rating") or "").strip()
+                    m = (row.get(f"Q{i}_meta") or "").strip()
+                    if rv and m in ("AGE", "INCOME", "ZIPCODE"):
+                        try:
+                            ratings[(aid, m)] = float(rv)
+                        except ValueError:
+                            pass
     best = {}
     for aid, meta, q, is_x, sel in rows:
         k = (aid, meta, q)
@@ -139,7 +219,7 @@ def our_data(vl):
     creative = {a: ("Goyer" if "-G-" in (r.get("group_name") or "") else
                     "Sheridan" if "-S-" in (r.get("group_name") or "") else None)
                 for a, r in personas.items()}
-    return personas, resp, cuts, creative
+    return personas, resp, cuts, creative, ratings
 
 
 def main():
@@ -148,7 +228,32 @@ def main():
 
     src = [r for r in csv.reader(open(WTABS, encoding=ENC, newline=""))]
     vl = load_vl()
-    personas, resp, cuts, creative = our_data(vl)
+    personas, resp, cuts, creative, ratings = our_data(vl)
+    regions = load_regions()
+
+    def derived(meta, aid):
+        """This persona's value for one of the six demographic tables."""
+        if meta == "AGE":
+            v = ratings.get((aid, "AGE"))
+            return band(v, AGE_BANDS) if v is not None else None
+        if meta == "INCOME":
+            v = ratings.get((aid, "INCOME"))
+            return band(v, INCOME_BANDS) if v is not None else None
+        if meta == "GENDER":
+            for _, _, qt in [k for k in resp if k[0] == aid and k[1] == "GENDER"]:
+                for _, lab in parse_options(resp[(aid, "GENDER", qt)]):
+                    return lab
+            return None
+        if meta == "ZIPCODE":
+            # region from the stated location, never from the zip
+            return regions.region_of(personas[aid].get("archetype_location"))[0]
+        if meta == "ETHNICITY":
+            return ETHNICITY_MAP.get(
+                (personas[aid].get("archetype_race") or "").strip().lower())
+        if meta == "EDU":
+            return EDU_MAP.get(
+                (personas[aid].get("archetype_education_level") or "").strip().lower())
+        return None
 
     colmap = {(cn, cv): (wg, wc) for wg, wc, cn, cv in vl.PAIRS}
     colmap[("TOTAL", "Total")] = ("", "Total")
@@ -241,6 +346,11 @@ def main():
         # Tables 47/48 split POSTINT by concept, so restrict to that creative.
         want_creative = concept_of.get((wmeta, marker))
 
+        # One of the six demographic tables? Its rows are banded values or
+        # attribute labels rather than answer options, so it takes the derived
+        # path below instead of the crosswalk/option path.
+        dsrc = DERIVED_SOURCE.get(wmeta) if layout == "plain" else None
+
         # Which of our questions does each row of this table correspond to?
         #   distribution -> one question, rows are its options
         #   summary      -> one metric, each ROW is a different question (item)
@@ -269,6 +379,18 @@ def main():
             key = rev.get((groups[colidx], labels[colidx]))
             if key is None:
                 return None, None, R_NO_CUT
+
+            if dsrc:
+                members = [a for a in personas
+                           if key in cuts[a] and derived(wmeta, a) is not None
+                           and (want_creative is None
+                                or creative[a] == want_creative)]
+                if not members:
+                    return None, None, R_NO_BASE
+                want = {norm(x) for x in optfor(row_label)}
+                hit = sum(1 for a in members if norm(derived(wmeta, a)) in want)
+                return hit / len(members), len(members), None
+
             target = qfor(row_label)
             if target is None:
                 return None, None, R_NO_QUESTION
@@ -289,7 +411,7 @@ def main():
         # base row: theirs verbatim, ours beneath
         their_base = list(src[base_idx])
         their_base[0] = "Total [HUM]"
-        syn_base = ["Total [SYN]"] + [""] * (width - 1)
+        syn_base = [f"Total [SYN{' attr' if dsrc == 'attribute' else ''}]"] + [""] * (width - 1)
         any_col = False
         for c in range(1, width):
             if not labels[c] and not cell(src[base_idx], c):
@@ -297,8 +419,11 @@ def main():
             key = rev.get((groups[c], labels[c]))
             if key is None:
                 continue
-            n_members = sum(1 for a in personas if key in cuts[a]
-                            and (want_creative is None or creative[a] == want_creative))
+            n_members = sum(
+                1 for a in personas
+                if key in cuts[a]
+                and (want_creative is None or creative[a] == want_creative)
+                and (not dsrc or derived(wmeta, a) is not None))
             syn_base[c] = str(n_members)
             any_col = True
         out.append(syn_base)
@@ -341,7 +466,10 @@ def main():
             # A row that produced nothing says why, in its own label. A blank
             # used to mean "no cut", "no question" or "no base" indifferently.
             note = f" — {'; '.join(sorted(reasons))}" if reasons and not any(syn[1:]) else ""
-            syn[0] = f"{lab} [SYN]{note}"
+            # An attribute is not an answer, and a reader must not have to know
+            # which is which. Tag it where the row's identity lives.
+            tag = " attr" if dsrc == "attribute" and any(syn[1:]) else ""
+            syn[0] = f"{lab} [SYN{tag}]{note}"
             gap[0] = f"{lab} [GAP]"
             out.extend([syn, hum, gap])
         if emitted:
@@ -355,6 +483,9 @@ def main():
         ["# [SYN] ours   [HUM] human study (N=800)   [GAP] ours minus theirs, in points"],
         ["# A [SYN] row that produced no numbers carries the reason in its label."],
         ["# NET: rows are the union of their indented member rows, not a literal label."],
+        ["# [SYN attr] means the value is a persona ATTRIBUTE, not an answer the persona"],
+        ["#   was asked. Applies to ZIPCODE/region, ETHNICITY and EDU. Region is derived"],
+        ["#   from the stated location, never from the zip code (see tools/regions.py)."],
     ]
     if unbuildable:
         legend.append([f"# {len(unbuildable)} banner columns have no comparable cut on our side "

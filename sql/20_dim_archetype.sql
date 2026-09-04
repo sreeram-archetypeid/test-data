@@ -174,9 +174,169 @@ parsed AS (
       ) AS INT64
     ) AS income_second_usd
   FROM attrs
+),
+-- Exact income, as ANSWERED in section 1.4. The attribute column carries a
+-- banded range ('$75,000-$99,999'), and F6 records the eight shapes it comes
+-- in; this is the actual figure, so the midpoint convention below stops being
+-- load-bearing for anything that uses income_exact_usd.
+--
+-- Read from staging rather than raw: the unpivot has already resolved which
+-- Q{n} block holds INCOME, and that position is not stable across files.
+s14_income AS (
+  SELECT archetype_id, CAST(MAX(rating_value) AS INT64) AS income_exact_usd
+  FROM `${PROJECT_ID}.${DS_STG}.stg_response`
+  WHERE section_code = '1.4' AND meta = 'INCOME' AND rating_value IS NOT NULL
+  GROUP BY archetype_id
 )
 SELECT
   p.*  EXCEPT(income_first_usd, income_second_usd),
+  i.income_exact_usd,
+
+  -- Region, derived from the STATED LOCATION and never from the zip code.
+  --
+  -- The delivered zips are lossy in two different ways: ~150 lost a trailing
+  -- digit (3030 = Atlanta, 8020 = Denver) and ~41 lost a leading zero
+  -- (2108 = Boston, 7102 = Newark). Zero-padding everything is right for the
+  -- second group and wrong for the first, and it fails loudly nowhere -- 03030
+  -- is a real New Hampshire zip. Measured against each persona's own stated
+  -- location, with the 182 five-digit zips as a 100%-accurate control:
+  -- as-is 78.3%, zero-padded 25.6%. So the zip is kept verbatim as provenance
+  -- and is not used here. See tools/regions.py for the full measurement.
+  --
+  -- This derivation resolves 389 of 398 (the 9 failures are empty strings) and
+  -- lands all four regions within 1.4pp of the human study's Table 3.
+  -- Generated from tools/regions.py -- do not hand-edit the CASE below.
+  CASE
+      -- State name first: more specific than a region word, and the data
+      -- contains 'Columbus, Indiana (Midwest USA)' where only the state
+      -- distinguishes it from 'Columbus, OH'. Longest name first so
+      -- 'west virginia' is not shadowed by 'virginia'.
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnorth carolina\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bsouth carolina\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmassachusetts\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnew hampshire\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bwest virginia\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnorth dakota\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bpennsylvania\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\brhode island\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bsouth dakota\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bconnecticut\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmississippi\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bcalifornia\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnew jersey\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnew mexico\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bwashington\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\blouisiana\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bminnesota\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\btennessee\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bwisconsin\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\barkansas\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bcolorado\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bdelaware\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\billinois\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bkentucky\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmaryland\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmichigan\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmissouri\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnebraska\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnew york\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\boklahoma\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bvirginia\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\balabama\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\barizona\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bflorida\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bgeorgia\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bindiana\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmontana\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bvermont\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bwyoming\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\balaska\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bhawaii\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bkansas\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bnevada\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\boregon\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bidaho\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bmaine\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\btexas\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\biowa\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\bohio\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'\butah\b') THEN 'West'
+      -- Then a two-letter postal abbreviation.
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bAK\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bAL\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bAR\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bAZ\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bCA\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bCO\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bCT\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bDC\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bDE\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bFL\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bGA\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bHI\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bIA\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bID\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bIL\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bIN\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bKS\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bKY\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bLA\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMA\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMD\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bME\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMI\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMN\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMO\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMS\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bMT\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNC\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bND\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNE\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNH\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNJ\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNM\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNV\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bNY\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bOH\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bOK\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bOR\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bPA\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bRI\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bSC\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bSD\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bTN\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bTX\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bUT\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bVA\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bVT\b') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bWA\b') THEN 'West'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bWI\b') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bWV\b') THEN 'South'
+      WHEN REGEXP_CONTAINS(archetype_location, r'\bWY\b') THEN 'West'
+      -- Finally a bare region word ('Southern USA', 41 personas).
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'northeast') THEN 'Northeast'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'midwest') THEN 'Midwest'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'southern') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'south') THEN 'South'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'western') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'west coast') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'pacific') THEN 'West'
+      WHEN REGEXP_CONTAINS(LOWER(archetype_location), r'west') THEN 'West'
+      ELSE NULL
+    END AS region_banner,
+
+  -- The human study's own five income bands (W-Tabs Table 76), so the banner
+  -- table can be compared row for row. Distinct from income_band_banner
+  -- below, which implements the banner PLAN's three bands and is what
+  -- sql/40_dim_archetype_cuts.sql reads.
+  CASE
+    WHEN i.income_exact_usd IS NULL     THEN NULL
+    WHEN i.income_exact_usd <  20000    THEN 'Under $20,000'
+    WHEN i.income_exact_usd <  40000    THEN '$20,000-$39,999'
+    WHEN i.income_exact_usd <  70000    THEN '$40,000-$69,999'
+    WHEN i.income_exact_usd < 100000    THEN '$70,000-$99,999'
+    ELSE '$100,000 or more'
+  END AS income_band_wtab,
 
   'READ' AS modality,
 
@@ -272,4 +432,5 @@ SELECT
     ELSE '$125K+'
   END AS income_band_banner
 
-FROM parsed p;
+FROM parsed p
+LEFT JOIN s14_income i USING (archetype_id);

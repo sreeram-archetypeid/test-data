@@ -7,10 +7,22 @@ the scales mean, then run the semantic and theme analysis on top.
 Everything here is **stdlib Python 3** — no pandas, no numpy, no network. It runs on the
 exports in place and writes to `out/`.
 
+**Two ways to run it, and they check each other.**
+
 ```bash
-./run_all.sh /path/to/abr-repo          # six stages, ~20 seconds on the full wave
-# then read out/HTR_WAVE_ASSESSMENT.md
+# In BigQuery (Cloud Shell) -- everything in the warehouse, no Python analysis step
+./bq/run_bq.sh -p PROJECT -b BUCKET -d /path/to/exports
+
+# As the reference implementation -- any machine with python3, ~23 seconds
+./run_all.sh /path/to/exports
 ```
+
+Nineteen measured numbers from the reference run are asserted against the warehouse output in
+`abr_30_marts.dq_parity`, and the BigQuery run fails on a mismatch. That is what keeps the two
+paths honest.
+
+**Start with [`WHITEPAPER.md`](WHITEPAPER.md)** -- the method, why the obvious analysis produces
+wrong numbers, and how anything gets validated when there is no human benchmark.
 
 ---
 

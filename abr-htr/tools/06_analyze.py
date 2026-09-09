@@ -46,8 +46,11 @@ import htr_lib as L
 SCALE_MAP_MODULE = "03_scale_map"
 
 # Prior wave, for the replication test. No option codes at all in these files.
-PRIOR = [("K3", "T1", "source/ABR-TSR_RETURN_v4_K_T1 — Results.csv"),
-         ("K9", "T23", "source/ABR-TSR_RETURN_v4_K_T23 — Results.csv")]
+# Panel codes are the version-stable ones from L.panel_code(): instrument + panel,
+# never the build. Adding a build must not change anything here.
+PRIOR = [("HTR_K3", "TSR_T1", "source/ABR-TSR_RETURN_v4_K_T1 — Results.csv"),
+         ("HTR_K9", "TSR_T23", "source/ABR-TSR_RETURN_v4_K_T23 — Results.csv")]
+KIDS_YOUNGER, KIDS_OLDER = "HTR_K3", "HTR_K9"
 
 # What the trailer actually said. Sourced from the export's own modal answers and
 # from the release-date text personas quote verbatim; both are checkable facts,
@@ -178,9 +181,9 @@ def cross_panel(banner_rows, label_sets=None):
     idx = {(r["panel"], r["meta"]): r for r in banner_rows if r["cut"] == "total"}
     out = []
     for (panel, meta), r in sorted(idx.items()):
-        if panel != "K3":
+        if panel != KIDS_YOUNGER:
             continue
-        other = idx.get(("K9", meta))
+        other = idx.get((KIDS_OLDER, meta))
         if not other:
             continue
         raw_gap = (other["top_box_pct"] or 0) - (r["top_box_pct"] or 0)
@@ -188,7 +191,8 @@ def cross_panel(banner_rows, label_sets=None):
         t2b_gap = (other["top2_box_pct"] or 0) - (r["top2_box_pct"] or 0)
         overlap = None
         if label_sets:
-            a3, a9 = label_sets.get(("K3", meta), set()), label_sets.get(("K9", meta), set())
+            a3 = label_sets.get((KIDS_YOUNGER, meta), set())
+            a9 = label_sets.get((KIDS_OLDER, meta), set())
             if a3 and a9:
                 overlap = round(len(a3 & a9) / len(a3 | a9), 2)
         out.append(dict(
@@ -336,7 +340,7 @@ def drivers(landed, out_dir, banner_rows, min_n=60):
     smap = {(o["question_key"], o["option_raw"]): o for o in read(os.path.join(out_dir, "scale_map.csv"))}
     per_metric = defaultdict(dict)
     for f in read(os.path.join(landed, "fct_response_option.csv")):
-        if f["panel"] != "AD" or f["archetype_id"] not in intent:
+        if f["archetype_id"] not in intent:
             continue
         d = decisions.get(f["question_key"])
         o = smap.get((f["question_key"], f["option_raw"]))
@@ -358,8 +362,7 @@ def drivers(landed, out_dir, banner_rows, min_n=60):
     # theme mention (0/1) vs intent
     themes = defaultdict(set)
     for c in read(os.path.join(out_dir, "verbatim_codes.csv")):
-        if c["panel"] == "AD":
-            themes[c["theme_id"]].add(c["archetype_id"])
+        themes[c["theme_id"]].add(c["archetype_id"])
     ids_all = [i for i in intent]
     for tid, mentioners in sorted(themes.items()):
         xs = [1 if i in mentioners else 0 for i in ids_all]
@@ -409,18 +412,20 @@ def main():
     print(f"  cells below n={a.min_base} and flagged: "
           f"{sum(1 for r in banner_rows if r['base_flag']):,} of {len(banner_rows):,}")
 
-    print("\n  HEADLINE -- adult panel, total (top box / top-2 / latent mean):")
-    for r in sorted([r for r in tot if r["panel"] == "AD"], key=lambda r: -(r["latent_mean"] or 0))[:14]:
+    print("\n  HEADLINE -- widest panel, total (top box / top-2 / latent mean):")
+    adult_panel = max({r["panel"] for r in tot}, key=lambda p: sum(1 for r in tot if r["panel"] == p))
+    for r in sorted([r for r in tot if r["panel"] == adult_panel],
+                    key=lambda r: -(r["latent_mean"] or 0))[:14]:
         print(f"    {r['meta']:<11} Q{r['q_position']:<3} n={r['base']:<4} "
               f"TB {r['top_box_pct']:>5.1f}% [{r['tb_ci_low']:>4.1f}-{r['tb_ci_high']:>4.1f}]  "
               f"T2B {pct_or_dash(r['top2_box_pct']):>6}  latent {r['latent_mean']:>5.1f}  "
               f"{r['question_text'][:46]}")
 
     print("\n  KIDS -- the same construct on two different instruments:")
-    print(f"    {'meta':<11}{'K3 pts':>7}{'K9 pts':>7}{'ovlp':>6}{'K3 TB':>8}{'K9 TB':>8}{'raw gap':>9}"
-          f"{'K3 lat':>8}{'K9 lat':>8}{'lat gap':>9}   verdict")
+    print(f"    {'meta':<11}{'younger pts':>12}{'older pts':>10}{'ovlp':>6}{'yng TB':>8}"
+          f"{'old TB':>8}{'raw gap':>9}{'yng lat':>8}{'old lat':>8}{'lat gap':>9}   verdict")
     for c in cross:
-        print(f"    {c['meta']:<11}{c['k3_points']:>7}{c['k9_points']:>7}"
+        print(f"    {c['meta']:<11}{c['k3_points']:>12}{c['k9_points']:>10}"
               f"{(c['option_label_overlap'] if c['option_label_overlap'] is not None else 0):>6.2f}"
               f"{c['k3_top_box']:>7.1f}%{c['k9_top_box']:>7.1f}%{c['raw_top_box_gap']:>9.1f}"
               f"{c['k3_latent_mean']:>8.1f}{c['k9_latent_mean']:>8.1f}{c['latent_gap']:>9.1f}   {c['verdict']}")

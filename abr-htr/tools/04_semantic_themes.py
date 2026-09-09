@@ -104,8 +104,9 @@ def build_corpus(landed_dir):
         if f["is_harness_leak"] == "1":
             continue                                    # quarantined
         docs.append(dict(
-            doc_id=f"{f['panel']}:{f['archetype_id']}:{f['q_position']}",
-            archetype_id=f["archetype_id"], panel=f["panel"], cohort=f["cohort"],
+            doc_id=f"{f['run_id']}:{f['archetype_id']}:{f['q_position']}",
+            archetype_id=f["archetype_id"], panel=f["panel"], run_id=f["run_id"],
+            build=f["build"],
             source="verbatim", field=q.get("meta", ""), q_position=f["q_position"],
             question_text=q.get("question_text", ""), text=text,
             n_stage_directions=int(f["n_stage_directions"] or 0), n_chars=len(text)))
@@ -116,8 +117,9 @@ def build_corpus(landed_dir):
                 continue
             clean, n_dir, _ = L.strip_stage_directions(text)
             docs.append(dict(
-                doc_id=f"{a['panel']}:{a['archetype_id']}:{col}",
-                archetype_id=a["archetype_id"], panel=a["panel"], cohort="",
+                doc_id=f"{a['run_id']}:{a['archetype_id']}:{col}",
+                archetype_id=a["archetype_id"], panel=a["panel"],
+                run_id=a["run_id"], build=a["build"],
                 source="aat_prose", field=col, q_position="",
                 question_text=col, text=clean,
                 n_stage_directions=n_dir, n_chars=len(clean)))
@@ -153,6 +155,7 @@ def main():
         for tid, pol, pat in hits:
             coded_rows.append(dict(
                 doc_id=d["doc_id"], archetype_id=d["archetype_id"], panel=d["panel"],
+                run_id=d["run_id"], build=d["build"],
                 source=d["source"], field=d["field"], q_position=d["q_position"],
                 roles="|".join(d["roles"]), theme_id=tid, theme_polarity=pol,
                 matched_pattern=pat, n_chars=d["n_chars"], text=d["text"][:400]))

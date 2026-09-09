@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import os
 import math
 import re
 import sys
@@ -408,6 +409,65 @@ def kmeans(vecs, k, iters=30, seed=17):
 
 def top_terms(centre, limit=8):
     return [t.replace("_", " ") for t, _ in sorted(centre.items(), key=lambda kv: -kv[1])[:limit]]
+
+
+# --- export identity: study / instrument / panel / build / run ---------------
+
+# Two naming conventions in play, both of which already carry a version:
+#   42p.0.0-ABR-HTR-K9-09-01-1 — Results.csv   build 42p.0.0, HTR, K9, 09-01, run 1
+#   ABR-TSR_RETURN_v4_K_T1 — Results.csv       build v4,      TSR, T1
+_NAME_BUILD_FIRST = re.compile(
+    r"^(?P<build>\d+[a-z]*(?:\.\d+)*)-(?P<study>[A-Z]+)-(?P<instrument>[A-Z]+)"
+    r"(?:-(?P<panel>K\d+|T\d+|[A-Z]{1,3}\d*))?"
+    r"(?:-(?P<date>\d{2}-\d{2}))?(?:-(?P<run>\d+))?", re.I)
+_NAME_STUDY_FIRST = re.compile(
+    r"^(?P<study>[A-Z]+)-(?P<instrument>[A-Z]+)(?:_[A-Z]+)*_(?P<build>v\d+[a-z]*)"
+    r"(?:_(?P<group>[A-Z]))?(?:_(?P<panel>T\d+|K\d+))?", re.I)
+
+
+def parse_export_name(filename):
+    """Pull (study, instrument, panel, build, export_date, run_seq) out of a filename.
+
+    Version lives in the filename in this study and nowhere else in the data, so
+    this is the only place it can come from. Returns None for anything that does
+    not look like an export, so a stray file in the folder is skipped rather
+    than landed as a mystery run.
+    """
+    stem = re.sub(r"\s*[-—–]\s*Results.*$", "", os.path.basename(filename))
+    stem = re.sub(r"\.csv$", "", stem, flags=re.I).strip()
+    for rx in (_NAME_BUILD_FIRST, _NAME_STUDY_FIRST):
+        m = rx.match(stem)
+        if m:
+            g = m.groupdict()
+            panel = (g.get("panel") or "").upper() or None
+            return dict(
+                study=(g.get("study") or "").upper(),
+                instrument=(g.get("instrument") or "").upper(),
+                panel=panel,
+                build=g.get("build") or "",
+                export_date=g.get("date") or "",
+                run_seq=int(g["run"]) if g.get("run") else 1,
+                stem=stem)
+    return None
+
+
+def run_id(meta):
+    """Stable identity for one export = one run. Facts from two runs coexist;
+    nothing is ever deduplicated across runs, because the difference between
+    two runs of the same instrument IS the measurement."""
+    parts = [meta["instrument"], meta["panel"] or "MAIN", meta["build"]]
+    if meta.get("export_date"):
+        parts.append(meta["export_date"])
+    if meta.get("run_seq", 1) != 1:
+        parts.append(f"r{meta['run_seq']}")
+    return slug("_".join(parts), 60)
+
+
+def panel_code(meta):
+    """Panel label that is stable ACROSS versions, so the same question in two
+    builds gets the same question_key and can be compared. Deliberately does not
+    include build, date or run."""
+    return f"{meta['instrument']}_{meta['panel'] or 'MAIN'}"
 
 
 # --- banner cuts -------------------------------------------------------------

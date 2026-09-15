@@ -159,23 +159,33 @@ def infer_slot_roles(header, rows, parsed, slots):
         for o in ords:
             col = [r[o] for r in sample_rows if o < len(r)]
             vals.extend(col)
-            per_col_distinct.append(len(set(v.strip() for v in col if v.strip())))
+            # distinct among NON-EMPTY values only; an empty column tells us
+            # nothing about whether this slot is constant per question.
+            per_col_distinct.append(len({v.strip() for v in col if v.strip()}))
         nonblank = [v for v in vals if v.strip()]
         fill = len(nonblank) / max(len(vals), 1)
         if fill == 0:
             roles[slot] = ("UNUSED", fill, 0)
             continue
         avg_len = statistics.mean(len(v) for v in nonblank)
-        # constant within a column across respondents => describes the question
-        constant_cols = sum(1 for d in per_col_distinct if d <= 1)
-        constant_ratio = constant_cols / len(ords)
-        distinct_overall = len(set(nonblank))
-        numericish = sum(1 for v in nonblank if v.strip().replace(".", "", 1).isdigit())
+
+        # Constant-within-column means "describes the question, not the answer".
+        # Measured only over columns that actually carry data, otherwise a
+        # mostly-empty answer slot looks constant and is misread as metadata.
+        populated = [d for d in per_col_distinct if d > 0]
+        constant_ratio = (sum(1 for d in populated if d == 1) / len(populated)
+                          if populated else 0.0)
+
+        distinct_overall = len({v.strip() for v in nonblank})
+        numericish = sum(1 for v in nonblank
+                         if v.strip().replace(".", "", 1).isdigit())
         numeric_ratio = numericish / len(nonblank)
 
         if constant_ratio > 0.8 and avg_len > 30:
             role = "QUESTION_TEXT"
-        elif constant_ratio > 0.8 and distinct_overall <= max(8, len(ords)):
+        elif constant_ratio > 0.8 and numeric_ratio > 0.9 and avg_len <= 3:
+            # a tiny numeric vocabulary shared across blocks is a type code;
+            # an alphanumeric label of the same shape is a question code
             role = "QUESTION_TYPE"
         elif constant_ratio > 0.8:
             role = "QUESTION_CODE"

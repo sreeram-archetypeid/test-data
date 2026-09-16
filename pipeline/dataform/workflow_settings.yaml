@@ -1,0 +1,8 @@
+defaultProject: archetypeid-staging
+defaultLocation: US
+defaultDataset: svy
+defaultAssertionDataset: svy_assertions
+vars:
+  # Cloud Run / manual run overrides these per drop — do not hardcode in .sqlx
+  study_id: drop-001
+  format_id: arena_ff_v1

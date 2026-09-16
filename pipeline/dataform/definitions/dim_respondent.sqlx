@@ -1,0 +1,21 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "dim_respondent",
+  description: "Four signed demographic cuts only. One row per study × person × source_file."
+}
+
+SELECT DISTINCT
+  study_id,
+  respondent_id,
+  source_file,
+  gender,
+  age_band,
+  race,
+  location_type AS location
+FROM ${ref("stg_clean")}
+WHERE study_id = "${study_id}"

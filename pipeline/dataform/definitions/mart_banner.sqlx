@@ -1,0 +1,168 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "mart_banner",
+  description: "Tidy banner: one row per figure. Grain includes question_text."
+}
+
+WITH cuts AS (
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    option_value,
+    'total' AS cut_id,
+    'Total' AS cut_value
+  FROM ${ref("fct_response")}
+  WHERE study_id = "${study_id}"
+
+  UNION ALL
+  SELECT
+    f.study_id,
+    f.respondent_id,
+    f.question_code,
+    f.question_text,
+    f.tabulation_kind,
+    f.scale_max,
+    f.scale_direction,
+    f.option_value,
+    'gender' AS cut_id,
+    IFNULL(a.gender_banner, IFNULL(f.gender, '(missing)')) AS cut_value
+  FROM ${ref("fct_response")} AS f
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id
+   AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+
+  UNION ALL
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    option_value,
+    'age' AS cut_id,
+    IFNULL(age_band, '(missing)') AS cut_value
+  FROM ${ref("fct_response")}
+  WHERE study_id = "${study_id}"
+
+  UNION ALL
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    option_value,
+    'race' AS cut_id,
+    IFNULL(race, '(missing)') AS cut_value
+  FROM ${ref("fct_response")}
+  WHERE study_id = "${study_id}"
+
+  UNION ALL
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    option_value,
+    'location' AS cut_id,
+    IFNULL(location, '(missing)') AS cut_value
+  FROM ${ref("fct_response")}
+  WHERE study_id = "${study_id}"
+
+  UNION ALL
+  SELECT
+    f.study_id,
+    f.respondent_id,
+    f.question_code,
+    f.question_text,
+    f.tabulation_kind,
+    f.scale_max,
+    f.scale_direction,
+    f.option_value,
+    'quadrants' AS cut_id,
+    IFNULL(a.quadrant, '(missing)') AS cut_value
+  FROM ${ref("fct_response")} AS f
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id
+   AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+),
+
+bases AS (
+  SELECT
+    study_id,
+    question_code,
+    question_text,
+    cut_id,
+    cut_value,
+    tabulation_kind,
+    ANY_VALUE(scale_max) AS scale_max,
+    ANY_VALUE(scale_direction) AS scale_direction,
+    COUNT(DISTINCT respondent_id) AS n_base
+  FROM cuts
+  GROUP BY study_id, question_code, question_text, cut_id, cut_value, tabulation_kind
+),
+
+top_box AS (
+  SELECT
+    c.study_id,
+    c.question_code,
+    c.question_text,
+    c.cut_id,
+    c.cut_value,
+    COUNT(DISTINCT c.respondent_id) AS n_top
+  FROM cuts AS c
+  WHERE c.tabulation_kind = 'SCALE'
+    AND c.scale_direction = '1_is_high'
+    AND SAFE_CAST(c.option_value AS INT64) IN (1, 2)
+  GROUP BY 1, 2, 3, 4, 5
+)
+
+SELECT
+  b.study_id,
+  b.question_code,
+  b.question_text,
+  b.cut_id,
+  b.cut_value,
+  'base' AS metric,
+  b.n_base AS n,
+  CAST(b.n_base AS FLOAT64) AS value
+FROM bases AS b
+
+UNION ALL
+
+SELECT
+  b.study_id,
+  b.question_code,
+  b.question_text,
+  b.cut_id,
+  b.cut_value,
+  'top_2_box' AS metric,
+  b.n_base AS n,
+  SAFE_DIVIDE(IFNULL(t.n_top, 0), b.n_base) AS value
+FROM bases AS b
+LEFT JOIN top_box AS t
+  ON b.study_id = t.study_id
+ AND b.question_code = t.question_code
+ AND IFNULL(b.question_text, '') = IFNULL(t.question_text, '')
+ AND b.cut_id = t.cut_id
+ AND b.cut_value = t.cut_value
+WHERE b.tabulation_kind = 'SCALE'

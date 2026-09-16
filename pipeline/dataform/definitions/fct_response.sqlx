@@ -1,0 +1,86 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "fct_response",
+  description: "One row per respondent × distinct question (code+text) × option. Deduped across fragment files."
+}
+
+WITH deduped AS (
+  SELECT *
+  FROM ${ref("stg_clean")}
+  WHERE study_id = "${study_id}"
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY study_id, respondent_id, question_code, question_text
+    ORDER BY source_file
+  ) = 1
+),
+
+with_kind AS (
+  SELECT
+    c.*,
+    q.tabulation_kind,
+    q.scale_max,
+    q.scale_direction
+  FROM deduped AS c
+  INNER JOIN ${ref("dim_question")} AS q
+    ON c.study_id = q.study_id
+   AND c.question_code = q.question_code
+   AND IFNULL(c.question_text, '') = IFNULL(q.question_text, '')
+),
+
+scale_rows AS (
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    gender,
+    age_band,
+    race,
+    location_type AS location,
+    COALESCE(
+      NULLIF(TRIM(rating_raw), ''),
+      REGEXP_EXTRACT(selected_raw, r'^(\\d+)\\.'),
+      REGEXP_EXTRACT(selected_raw, r'^(\\d+)\\.\\s*\\d+\\.')
+    ) AS option_value,
+    CAST(NULL AS STRING) AS option_label
+  FROM with_kind
+  WHERE tabulation_kind = 'SCALE'
+),
+
+select_rows AS (
+  SELECT
+    study_id,
+    respondent_id,
+    question_code,
+    question_text,
+    tabulation_kind,
+    scale_max,
+    scale_direction,
+    gender,
+    age_band,
+    race,
+    location_type AS location,
+    TRIM(piece) AS option_value,
+    CAST(NULL AS STRING) AS option_label
+  FROM with_kind,
+  UNNEST(SPLIT(IFNULL(selected_clean, ''), '|')) AS piece
+  WHERE tabulation_kind = 'SELECT'
+    AND selected_clean IS NOT NULL
+    AND TRIM(selected_clean) != ''
+    AND TRIM(piece) != ''
+)
+
+SELECT * FROM scale_rows
+WHERE option_value IS NOT NULL AND TRIM(option_value) != ''
+
+UNION ALL
+
+SELECT * FROM select_rows

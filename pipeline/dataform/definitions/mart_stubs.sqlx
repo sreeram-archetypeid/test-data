@@ -1,0 +1,288 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "mart_stubs",
+  description: "SCALE+SELECT stubs with Total, gender, quadrants, and G/S arm nests."
+}
+
+WITH scale_map AS (
+  SELECT question_code, question_text, scale_id
+  FROM `archetypeid-staging.svy_config.question_scale_map`
+  WHERE format_id = "${format_id}"
+    AND (study_id IS NULL OR study_id = "${study_id}")
+),
+
+scale_stub_defs AS (
+  SELECT * FROM `archetypeid-staging.svy_config.scale_stubs`
+  WHERE format_id = "${format_id}"
+),
+
+scale_net_defs AS (
+  SELECT * FROM `archetypeid-staging.svy_config.scale_nets`
+  WHERE format_id = "${format_id}"
+),
+
+scale_cuts AS (
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'total' AS cut_id, 'Total' AS cut_value
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+
+  UNION ALL
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'gender', IFNULL(a.gender_banner, '(missing)')
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+
+  UNION ALL
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'quadrants', IFNULL(a.quadrant, '(missing)')
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+
+  UNION ALL
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'arm', IFNULL(a.sample_arm, '(missing)')
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+
+  UNION ALL
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'arm_gender', IFNULL(a.arm_gender, '(missing)')
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+
+  UNION ALL
+  SELECT f.study_id, f.respondent_id, f.question_code, f.question_text, f.option_value,
+         'arm_quadrants', IFNULL(a.arm_quadrant, '(missing)')
+  FROM ${ref("fct_response")} AS f
+  INNER JOIN scale_map AS m
+    ON f.question_code = m.question_code
+   AND IFNULL(f.question_text, '') = IFNULL(m.question_text, '')
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON f.study_id = a.study_id AND f.respondent_id = a.respondent_id
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SCALE'
+),
+
+scale_bases AS (
+  SELECT study_id, question_code, question_text, cut_id, cut_value,
+         COUNT(DISTINCT respondent_id) AS n_base
+  FROM scale_cuts
+  GROUP BY 1, 2, 3, 4, 5
+),
+
+scale_option_counts AS (
+  SELECT
+    c.study_id, c.question_code, c.question_text, c.cut_id, c.cut_value,
+    s.stub_label, s.stub_sort, s.indent,
+    COUNT(DISTINCT IF(c.option_value = s.code, c.respondent_id, NULL)) AS n_opt
+  FROM scale_cuts AS c
+  INNER JOIN scale_map AS m
+    ON c.question_code = m.question_code
+   AND IFNULL(c.question_text, '') = IFNULL(m.question_text, '')
+  INNER JOIN scale_stub_defs AS s ON s.scale_id = m.scale_id
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+scale_net_counts AS (
+  SELECT
+    c.study_id, c.question_code, c.question_text, c.cut_id, c.cut_value,
+    n.net_label AS stub_label, n.net_sort AS stub_sort, FALSE AS indent,
+    COUNT(DISTINCT IF(c.option_value IN UNNEST(n.codes), c.respondent_id, NULL)) AS n_opt
+  FROM scale_cuts AS c
+  INNER JOIN scale_map AS m
+    ON c.question_code = m.question_code
+   AND IFNULL(c.question_text, '') = IFNULL(m.question_text, '')
+  INNER JOIN scale_net_defs AS n ON n.scale_id = m.scale_id
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+scale_all AS (
+  SELECT study_id, question_code, question_text, cut_id, cut_value,
+         stub_label, stub_sort, indent, n_opt, 'option' AS stub_kind
+  FROM scale_option_counts
+  UNION ALL
+  SELECT study_id, question_code, question_text, cut_id, cut_value,
+         stub_label, stub_sort, indent, n_opt, 'net'
+  FROM scale_net_counts
+),
+
+scale_out AS (
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         'base' AS stub_kind, 'Total' AS stub_label, 0 AS stub_sort, FALSE AS indent,
+         b.n_base, b.n_base AS count_value, CAST(NULL AS FLOAT64) AS pct_value
+  FROM scale_bases AS b
+  UNION ALL
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         s.stub_kind,
+         IF(s.indent, CONCAT('  ', s.stub_label), s.stub_label),
+         s.stub_sort, s.indent, b.n_base, s.n_opt,
+         SAFE_DIVIDE(s.n_opt, b.n_base)
+  FROM scale_all AS s
+  INNER JOIN scale_bases AS b
+    ON s.study_id = b.study_id AND s.question_code = b.question_code
+   AND IFNULL(s.question_text, '') = IFNULL(b.question_text, '')
+   AND s.cut_id = b.cut_id AND s.cut_value = b.cut_value
+  UNION ALL
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         'sigma', 'SIGMA', 999, FALSE, b.n_base, b.n_base, 1.0
+  FROM scale_bases AS b
+),
+
+select_raw AS (
+  SELECT
+    f.study_id,
+    f.respondent_id,
+    f.question_code,
+    f.question_text,
+    NULLIF(REGEXP_REPLACE(TRIM(f.option_value), r'^\\d+\\.\\s*', ''), '') AS option_value
+  FROM ${ref("fct_response")} AS f
+  WHERE f.study_id = "${study_id}"
+    AND f.tabulation_kind = 'SELECT'
+),
+
+select_cuts AS (
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'total' AS cut_id, 'Total' AS cut_value
+  FROM select_raw AS r
+  WHERE r.option_value IS NOT NULL
+
+  UNION ALL
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'gender', IFNULL(a.gender_banner, '(missing)')
+  FROM select_raw AS r
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON r.study_id = a.study_id AND r.respondent_id = a.respondent_id
+  WHERE r.option_value IS NOT NULL
+
+  UNION ALL
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'quadrants', IFNULL(a.quadrant, '(missing)')
+  FROM select_raw AS r
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON r.study_id = a.study_id AND r.respondent_id = a.respondent_id
+  WHERE r.option_value IS NOT NULL
+
+  UNION ALL
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'arm', IFNULL(a.sample_arm, '(missing)')
+  FROM select_raw AS r
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON r.study_id = a.study_id AND r.respondent_id = a.respondent_id
+  WHERE r.option_value IS NOT NULL
+
+  UNION ALL
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'arm_gender', IFNULL(a.arm_gender, '(missing)')
+  FROM select_raw AS r
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON r.study_id = a.study_id AND r.respondent_id = a.respondent_id
+  WHERE r.option_value IS NOT NULL
+
+  UNION ALL
+  SELECT r.study_id, r.respondent_id, r.question_code, r.question_text, r.option_value,
+         'arm_quadrants', IFNULL(a.arm_quadrant, '(missing)')
+  FROM select_raw AS r
+  LEFT JOIN ${ref("int_cut_attrs")} AS a
+    ON r.study_id = a.study_id AND r.respondent_id = a.respondent_id
+  WHERE r.option_value IS NOT NULL
+),
+
+select_bases AS (
+  SELECT study_id, question_code, question_text, cut_id, cut_value,
+         COUNT(DISTINCT respondent_id) AS n_base
+  FROM select_cuts
+  GROUP BY 1, 2, 3, 4, 5
+),
+
+select_option_rank AS (
+  SELECT
+    study_id,
+    question_code,
+    question_text,
+    option_value AS stub_label,
+    ROW_NUMBER() OVER (
+      PARTITION BY study_id, question_code, question_text
+      ORDER BY COUNT(DISTINCT respondent_id) DESC, option_value
+    ) * 10 AS stub_sort
+  FROM select_cuts
+  WHERE cut_id = 'total' AND cut_value = 'Total'
+  GROUP BY study_id, question_code, question_text, option_value
+),
+
+select_option_counts AS (
+  SELECT
+    c.study_id,
+    c.question_code,
+    c.question_text,
+    c.cut_id,
+    c.cut_value,
+    c.option_value AS stub_label,
+    r.stub_sort,
+    FALSE AS indent,
+    COUNT(DISTINCT c.respondent_id) AS n_opt
+  FROM select_cuts AS c
+  INNER JOIN select_option_rank AS r
+    ON c.study_id = r.study_id
+   AND c.question_code = r.question_code
+   AND IFNULL(c.question_text, '') = IFNULL(r.question_text, '')
+   AND c.option_value = r.stub_label
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+select_out AS (
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         'base' AS stub_kind, 'Total' AS stub_label, 0 AS stub_sort, FALSE AS indent,
+         b.n_base, b.n_base AS count_value, CAST(NULL AS FLOAT64) AS pct_value
+  FROM select_bases AS b
+  UNION ALL
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         'option', o.stub_label, o.stub_sort, o.indent,
+         b.n_base, o.n_opt, SAFE_DIVIDE(o.n_opt, b.n_base)
+  FROM select_option_counts AS o
+  INNER JOIN select_bases AS b
+    ON o.study_id = b.study_id AND o.question_code = b.question_code
+   AND IFNULL(o.question_text, '') = IFNULL(b.question_text, '')
+   AND o.cut_id = b.cut_id AND o.cut_value = b.cut_value
+  UNION ALL
+  SELECT b.study_id, b.question_code, b.question_text, b.cut_id, b.cut_value,
+         'sigma', 'SIGMA', 999, FALSE, b.n_base, b.n_base, 1.0
+  FROM select_bases AS b
+)
+
+SELECT * FROM scale_out
+UNION ALL
+SELECT * FROM select_out

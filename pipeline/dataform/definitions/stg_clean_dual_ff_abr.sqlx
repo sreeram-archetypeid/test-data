@@ -1,0 +1,145 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "stg_clean",
+  description: "Unified clean stage: FF from svy_stg, ABR (and future packs) from canon_*."
+}
+
+/*
+  FF path: existing answers/respondents tables.
+  ABR path: canon_respondent + canon_response (adapter already set tabulation fields).
+  Downstream dims/facts keep the same column contract.
+*/
+
+WITH ff AS (
+  SELECT
+    a.study_id,
+    a.respondent_id,
+    a.source_file,
+    a.question_code,
+    a.question_text,
+    a.meta,
+    a.type_code,
+    a.rating_label,
+    a.rating_raw,
+    a.selected_raw,
+    a.qual_raw,
+    r.gender,
+    r.age_raw,
+    r.race,
+    r.location_type
+  FROM `archetypeid-staging.svy_stg.answers` AS a
+  LEFT JOIN `archetypeid-staging.svy_stg.respondents` AS r
+    ON a.study_id = r.study_id
+   AND a.respondent_id = r.respondent_id
+   AND a.source_file = r.source_file
+  WHERE "${format_id}" = 'arena_ff_v1'
+    AND a.study_id = "${study_id}"
+),
+
+abr AS (
+  SELECT
+    x.study_id,
+    x.respondent_id,
+    x.source_file,
+    x.question_code,
+    x.question_text,
+    CAST(NULL AS STRING) AS meta,
+    CAST(NULL AS STRING) AS type_code,
+    CAST(NULL AS STRING) AS rating_label,
+    CAST(x.rating AS STRING) AS rating_raw,
+    IF(x.tabulation_kind IN ('SELECT', 'SCALE'), x.option_value, CAST(NULL AS STRING)) AS selected_raw,
+    IF(x.tabulation_kind = 'OTHER', x.option_value, CAST(NULL AS STRING)) AS qual_raw,
+    r.gender,
+    r.age_band AS age_raw,
+    CAST(NULL AS STRING) AS race,
+    CAST(NULL AS STRING) AS location_type
+  FROM `archetypeid-staging.svy.canon_response` AS x
+  LEFT JOIN `archetypeid-staging.svy.canon_respondent` AS r
+    ON x.study_id = r.study_id
+   AND x.respondent_id = r.respondent_id
+   AND x.source_file = r.source_file
+  WHERE "${format_id}" = 'abr_persona_v1'
+    AND x.study_id = "${study_id}"
+),
+
+base AS (
+  SELECT * FROM ff
+  UNION ALL
+  SELECT * FROM abr
+),
+
+cleaned AS (
+  SELECT
+    * EXCEPT (selected_raw),
+    selected_raw,
+    CASE
+      WHEN selected_raw IS NULL OR TRIM(selected_raw) = '' THEN NULL
+      ELSE (
+        SELECT STRING_AGG(
+          REGEXP_REPLACE(TRIM(piece), r'^\d+\.\s*\d+\.\s*', ''),
+          '|'
+        )
+        FROM UNNEST(SPLIT(selected_raw, '|')) AS piece
+        WITH OFFSET
+      )
+    END AS selected_clean
+  FROM base
+)
+
+SELECT
+  study_id,
+  respondent_id,
+  source_file,
+  question_code,
+  question_text,
+  meta,
+  type_code,
+  rating_label,
+  rating_raw,
+  selected_raw,
+  selected_clean,
+  qual_raw,
+  INITCAP(LOWER(TRIM(gender))) AS gender,
+  age_raw,
+  CASE
+    WHEN race IS NULL OR TRIM(race) = '' THEN NULL
+    WHEN REGEXP_CONTAINS(LOWER(race), r'lati[nc]o|hispanic') THEN 'Latino / Hispanic'
+    WHEN REGEXP_CONTAINS(LOWER(race), r'black|african') THEN 'Black / African American'
+    WHEN REGEXP_CONTAINS(LOWER(race), r'white|caucasian') THEN 'White / Caucasian'
+    WHEN REGEXP_CONTAINS(LOWER(race), r'(^|[^a-z])asian|pacific islander') THEN 'Asian or Pacific Islander'
+    ELSE TRIM(race)
+  END AS race,
+  location_type,
+  CASE
+    WHEN age_raw IS NULL OR TRIM(age_raw) = '' THEN NULL
+    WHEN REGEXP_CONTAINS(age_raw, r'13-16') THEN '13-16'
+    WHEN REGEXP_CONTAINS(age_raw, r'17-24') THEN '17-24'
+    WHEN REGEXP_CONTAINS(age_raw, r'18-27') THEN '18-27'
+    WHEN REGEXP_CONTAINS(age_raw, r'25-29') THEN '25-29'
+    WHEN REGEXP_CONTAINS(age_raw, r'25-44') THEN '25-44'
+    WHEN REGEXP_CONTAINS(age_raw, r'28-44') THEN '28-44'
+    WHEN REGEXP_CONTAINS(age_raw, r'30-34') THEN '30-34'
+    WHEN REGEXP_CONTAINS(age_raw, r'35-39') THEN '35-39'
+    WHEN REGEXP_CONTAINS(age_raw, r'35-44') THEN '35-44'
+    WHEN REGEXP_CONTAINS(age_raw, r'40-44') THEN '40-44'
+    WHEN REGEXP_CONTAINS(age_raw, r'40-49') THEN '40-49'
+    WHEN REGEXP_CONTAINS(age_raw, r'45-54') THEN '45-54'
+    WHEN REGEXP_CONTAINS(age_raw, r'55-64') THEN '55-64'
+    WHEN REGEXP_CONTAINS(age_raw, r'65') THEN '65+'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 13 AND 16 THEN '13-16'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 17 AND 24 THEN '17-24'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 25 AND 29 THEN '25-29'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 30 AND 34 THEN '30-34'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 35 AND 39 THEN '35-39'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 40 AND 44 THEN '40-44'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 45 AND 54 THEN '45-54'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) BETWEEN 55 AND 64 THEN '55-64'
+    WHEN SAFE_CAST(REGEXP_EXTRACT(age_raw, r'^(\d+)') AS INT64) >= 65 THEN '65+'
+    ELSE TRIM(age_raw)
+  END AS age_band
+FROM cleaned

@@ -1,0 +1,71 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "dim_question",
+  description: "Question identity = study + code + text. scale_max and tabulation_kind from observed answers."
+}
+
+WITH fmt AS (
+  SELECT sentinels, scale_direction
+  FROM `archetypeid-staging.svy_config.format_schema`
+  WHERE format_id = "${format_id}"
+),
+
+per_q AS (
+  SELECT
+    c.study_id,
+    c.question_code,
+    c.question_text,
+    ANY_VALUE(c.meta) AS meta,
+    ANY_VALUE(c.type_code) AS type_code,
+    ARRAY_AGG(DISTINCT c.rating_raw IGNORE NULLS) AS rating_values,
+    ARRAY_AGG(DISTINCT REGEXP_EXTRACT(c.selected_raw, r'^(\\d+)\\.') IGNORE NULLS) AS selected_codes,
+    COUNTIF(c.selected_raw IS NOT NULL AND TRIM(c.selected_raw) != '') AS n_with_selected,
+    COUNTIF(c.rating_raw IS NOT NULL AND TRIM(c.rating_raw) != '') AS n_with_rating,
+    COUNT(DISTINCT c.respondent_id) AS n_respondents
+  FROM ${ref("stg_clean")} AS c
+  WHERE c.study_id = "${study_id}"
+  GROUP BY c.study_id, c.question_code, c.question_text
+),
+
+scored AS (
+  SELECT
+    p.*,
+    f.scale_direction,
+    f.sentinels,
+    (
+      SELECT MAX(SAFE_CAST(v AS INT64))
+      FROM UNNEST(ARRAY_CONCAT(p.rating_values, p.selected_codes)) AS v
+      WHERE SAFE_CAST(v AS INT64) IS NOT NULL
+        AND v NOT IN UNNEST(f.sentinels)
+        AND NOT REGEXP_CONTAINS(IFNULL(v, ''), r'99')
+    ) AS scale_max
+  FROM per_q AS p
+  CROSS JOIN fmt AS f
+)
+
+SELECT
+  study_id,
+  question_code,
+  question_text,
+  meta,
+  type_code,
+  scale_direction,
+  scale_max,
+  n_respondents,
+  CASE
+    WHEN n_with_rating >= n_with_selected
+     AND scale_max IS NOT NULL
+     AND scale_max BETWEEN 2 AND 11
+    THEN 'SCALE'
+    WHEN question_text LIKE 'Approximately how often%'
+    THEN 'SCALE'
+    WHEN n_with_selected > 0
+    THEN 'SELECT'
+    ELSE 'OTHER'
+  END AS tabulation_kind
+FROM scored

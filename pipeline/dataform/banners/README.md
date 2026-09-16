@@ -1,35 +1,37 @@
-# ABR banners — do this in order (BigQuery)
+# ABR W-Tabs banners (drop-002 instance)
 
-House rules forever:
-- Percents: `FORMAT('%.1f', …)` → e.g. `16.7%`
-- Missing cell → `0.0%`
-- Top / T2B / Bottom are **signed** in `svy_config.abr_box_defs` (not guessed)
+House rules: `FORMAT('%.1f')`, missing → `0.0%`, boxes signed in config.
 
-## Steps
+## What this adds (like Final W-Tabs)
 
-1. **Sign boxes** (once; edit later to add more questions)  
-   Run: `pipeline/dataform/config/abr_box_defs.sql`
+| Output table | Contents |
+|---|---|
+| `abr_respondent_meta` | Clean persona cuts: panel, gender, ethnicity, location, adoption, children, age bands |
+| `mart_abr_banner_meta` | Long tidy banner: every Q × option × meta group |
+| `render_abr_persona_meta` | Persona inventory tables (age/gender/ethnicity/…) by 4-6 / 7-12 / 12-64 |
+| `render_abr_kids_wtabs` | Kids questionnaire + panel/gender/age/ethnicity + boxes |
+| `render_abr_htr_wtabs` | HTR questionnaire + gender/age/ethnicity/location/adoption/children + boxes |
 
-2. **Compute boxes from current stubs**  
-   Run: `pipeline/dataform/banners/01_compute_abr_boxes.sql`  
-   Check smoke at bottom: K3/K9 trailer-like TOP/T2B/BOTTOM should be non-null.
+**Not used as cuts** (too sparse / free text): hobbies, persona prose, most `aat_*` narratives.
 
-3. **Render HTR book**  
-   Run: `pipeline/dataform/banners/02_render_htr.sql`  
-   Export: `SELECT * FROM archetypeid-staging.svy.render_abr_htr_pcnt`
+## Run order (BigQuery)
 
-4. **Render kids book (4-6 vs 7-12)**  
-   Run: `pipeline/dataform/banners/03_render_kids.sql`  
-   Export: `SELECT * FROM archetypeid-staging.svy.render_abr_kids_pcnt`
+```
+config/abr_box_defs.sql
+banners/01_compute_abr_boxes.sql
+banners/04_build_abr_respondent_meta.sql
+banners/05_mart_abr_banner_meta.sql
+banners/06_render_persona_meta.sql          → export first (demo book)
+banners/07_render_kids_wtabs_meta.sql       → export kids W-Tabs
+banners/08_render_htr_wtabs_meta.sql        → export HTR W-Tabs
+```
 
-## Adding Top/T2B/Bottom for another question
+Optional simpler books (earlier): `02_render_htr.sql`, `03_render_kids.sql`.
 
-1. Get distinct cleaned options from data.
-2. Add 3 rows to `abr_box_defs` (TOP / T2B / BOTTOM) with exact labels.
-3. Add a row to `abr_question_boxes` (regex on question text + arm if kids).
-4. Re-run steps 2–4.
+## Meta groups in `mart_abr_banner_meta`
 
-## Why kids need per-arm scales
+`TOTAL`, `PANEL` (4-6 / 7-12 / 12-64), `GENDER`, `ETHNICITY`, `LOCATION`, `ADOPTION`, `AGE_BAND`, `PANEL_GENDER`, `QUADRANTS`, `CHILDREN` (HTR).
 
-K3 and K9 use different words for the same idea (`I liked it a lot` vs `I liked it a lot!`).  
-One shared top-box label would miss one panel — so K3/K9 each have their own `scale_id`.
+## Genericity note
+
+Logic is **format-pack / ABR-shaped**. Filenames still use `drop-002` in SQL — change that var when running another ABR drop with the same instruments. New question wording → extend `abr_box_defs` / `abr_question_boxes`.

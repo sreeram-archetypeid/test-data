@@ -1,0 +1,87 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "table",
+  schema: "svy",
+  name: "int_cut_attrs",
+  description: "Banner cut attributes: gender, quadrants, sample arm (format-specific extraction)."
+}
+
+WITH params AS (
+  SELECT
+    "${study_id}" AS study_id,
+    CAST(p.param_value AS INT64) AS age_split_at
+  FROM `archetypeid-staging.svy_config.banner_params` AS p
+  WHERE p.format_id = "${format_id}"
+    AND p.param_name = 'age_split_at'
+    AND (p.study_id = "${study_id}" OR p.study_id IS NULL)
+  QUALIFY ROW_NUMBER() OVER (
+    ORDER BY IF(p.study_id IS NULL, 1, 0)
+  ) = 1
+),
+
+base AS (
+  SELECT
+    d.study_id,
+    d.respondent_id,
+    ANY_VALUE(d.gender) AS gender,
+    ANY_VALUE(d.age_band) AS age_band,
+    ANY_VALUE(d.race) AS race,
+    ANY_VALUE(d.location) AS location,
+    -- FF: -FF-G- / -FF-S- in filename. ABR arms handled in Step 3 adapter.
+    ANY_VALUE(REGEXP_EXTRACT(d.source_file, r'-FF-([GS])-')) AS sample_arm,
+    p.age_split_at,
+    SAFE_CAST(REGEXP_EXTRACT(ANY_VALUE(d.age_band), r'^(\\d+)') AS INT64) AS age_low
+  FROM ${ref("dim_respondent")} AS d
+  INNER JOIN params AS p USING (study_id)
+  WHERE d.study_id = "${study_id}"
+  GROUP BY d.study_id, d.respondent_id, p.age_split_at
+)
+
+SELECT
+  study_id,
+  respondent_id,
+  gender,
+  age_band,
+  race,
+  location,
+  age_split_at,
+  sample_arm,
+  CASE
+    WHEN LOWER(gender) = 'male' THEN 'Men'
+    WHEN LOWER(gender) = 'female' THEN 'Women'
+    ELSE gender
+  END AS gender_banner,
+  CASE
+    WHEN gender IS NULL OR age_low IS NULL THEN NULL
+    WHEN LOWER(gender) = 'male' AND age_low < age_split_at
+      THEN CONCAT('Men <', CAST(age_split_at AS STRING))
+    WHEN LOWER(gender) = 'male' AND age_low >= age_split_at
+      THEN CONCAT('Men ', CAST(age_split_at AS STRING), '+')
+    WHEN LOWER(gender) = 'female' AND age_low < age_split_at
+      THEN CONCAT('Women <', CAST(age_split_at AS STRING))
+    WHEN LOWER(gender) = 'female' AND age_low >= age_split_at
+      THEN CONCAT('Women ', CAST(age_split_at AS STRING), '+')
+    ELSE NULL
+  END AS quadrant,
+  CASE
+    WHEN sample_arm IS NULL THEN NULL
+    WHEN LOWER(gender) = 'male' THEN CONCAT(sample_arm, ' · Men')
+    WHEN LOWER(gender) = 'female' THEN CONCAT(sample_arm, ' · Women')
+    ELSE NULL
+  END AS arm_gender,
+  CASE
+    WHEN sample_arm IS NULL OR gender IS NULL OR age_low IS NULL THEN NULL
+    WHEN LOWER(gender) = 'male' AND age_low < age_split_at
+      THEN CONCAT(sample_arm, ' · Men <', CAST(age_split_at AS STRING))
+    WHEN LOWER(gender) = 'male' AND age_low >= age_split_at
+      THEN CONCAT(sample_arm, ' · Men ', CAST(age_split_at AS STRING), '+')
+    WHEN LOWER(gender) = 'female' AND age_low < age_split_at
+      THEN CONCAT(sample_arm, ' · Women <', CAST(age_split_at AS STRING))
+    WHEN LOWER(gender) = 'female' AND age_low >= age_split_at
+      THEN CONCAT(sample_arm, ' · Women ', CAST(age_split_at AS STRING), '+')
+    ELSE NULL
+  END AS arm_quadrant
+FROM base

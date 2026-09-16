@@ -1,0 +1,24 @@
+js {
+  const { study_id, format_id } = require("includes/params");
+}
+
+config {
+  type: "view",
+  schema: "svy_config",
+  name: "v_active_study",
+  description: "Resolves the study/format for this Dataform run from vars (+ registry check)."
+}
+
+SELECT
+  r.study_id,
+  r.format_id,
+  r.gcs_uri,
+  r.gcs_prefix,
+  r.status,
+  f.adapter_name
+FROM `archetypeid-staging.svy_config.study_registry` AS r
+INNER JOIN `archetypeid-staging.svy_config.format_registry` AS f
+  ON r.format_id = f.format_id
+ AND IFNULL(f.active, TRUE) = TRUE
+WHERE r.study_id = "${study_id}"
+  AND r.format_id = "${format_id}"

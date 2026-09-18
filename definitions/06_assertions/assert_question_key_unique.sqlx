@@ -1,0 +1,11 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_question_key_unique",
+  description: "question_key must be unique per study. A collision means two different questions share meta and text.",
+  tags: ["dq"]
+}
+
+SELECT study_id, question_key, COUNT(*) AS n
+FROM ${ref("dim_question")}
+GROUP BY 1, 2 HAVING COUNT(*) > 1

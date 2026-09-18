@@ -1,0 +1,1 @@
+config { type: "declaration", schema: "banner_raw", name: "file_cell" }

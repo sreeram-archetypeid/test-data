@@ -1,0 +1,14 @@
+defaultProject: archetypeid-staging
+defaultLocation: US
+defaultDataset: banner
+defaultAssertionDataset: banner_assertions
+dataformCoreVersion: 3.0.52
+
+# No study_id / format_id vars. Every model is multi-study and reads its
+# work queue from banner_config.study_registry, so one static release handles
+# every drop. Registering a drop is an INSERT, not a redeploy.
+vars:
+  config_dataset: banner_config
+  raw_dataset: banner_raw
+  export_bucket: gs://archetypeid-banner-out
+  composite_depth: 3

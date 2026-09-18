@@ -1,0 +1,101 @@
+config {
+  type: "table",
+  schema: "banner",
+  name: "mart_study_profile",
+  description: "The report a human reads before signing off a new drop. One row per meta: what it is, how it tabulates, how many levels, and how strongly it discriminates on the headline metric. Fully deterministic; no model proposes anything.",
+  tags: ["marts","profile"]
+}
+
+js { const { CONFIG, BUILD_QUEUE } = require("includes/constants"); }
+
+WITH q AS (
+  SELECT study_id, format_id, meta,
+         ANY_VALUE(tabulation_kind) AS tabulation_kind,
+         ANY_VALUE(response_mode)   AS response_mode,
+         ANY_VALUE(exposure_phase)  AS exposure_phase,
+         COUNT(DISTINCT question_key) AS n_items,
+         MIN(display_order) AS display_order,
+         MAX(n_respondents) AS n_respondents
+  FROM ${ref("dim_question")}
+  WHERE study_id IN (${BUILD_QUEUE})
+  GROUP BY 1, 2, 3
+),
+
+levels AS (
+  SELECT study_id, meta,
+         COUNT(DISTINCT option_code) AS n_levels,
+         MIN(option_code) AS min_code,
+         MAX(option_code) AS max_code,
+         ARRAY_AGG(DISTINCT option_label IGNORE NULLS ORDER BY option_label LIMIT 12) AS sample_labels
+  FROM ${ref("fct_response")}
+  WHERE study_id IN (${BUILD_QUEUE}) AND is_primary_run AND is_valid_response
+  GROUP BY 1, 2
+),
+
+-- Discrimination on the headline metric, where one exists.
+y AS (
+  SELECT study_id, respondent_id, converted
+  FROM (
+    SELECT f.study_id, f.respondent_id,
+           MAX(IF(f.option_code IN UNNEST(r.topbox_codes), 1, 0)) AS converted
+    FROM ${ref("fct_response")} AS f
+    JOIN ${CONFIG}.study_registry AS r
+      ON r.study_id = f.study_id AND r.headline_meta = f.meta
+    WHERE f.is_primary_run AND f.is_valid_response
+    GROUP BY 1, 2
+  )
+),
+
+cells AS (
+  SELECT f.study_id, f.meta, f.option_code, y.respondent_id, y.converted
+  FROM ${ref("fct_response")} AS f
+  JOIN y USING (study_id, respondent_id)
+  WHERE f.is_primary_run AND f.is_valid_response
+),
+
+grand AS (
+  SELECT study_id, meta, AVG(converted) AS gmean, COUNT(*) AS n_tot
+  FROM cells GROUP BY 1, 2
+),
+
+by_level AS (
+  SELECT study_id, meta, option_code,
+         COUNT(*) AS n_level, AVG(converted) AS lmean
+  FROM cells GROUP BY 1, 2, 3
+),
+
+eta AS (
+  SELECT b.study_id, b.meta,
+         MIN(b.n_level) AS min_level_base,
+         SAFE_DIVIDE(
+           SUM(b.n_level * POW(b.lmean - g.gmean, 2)),
+           NULLIF(g.n_tot * g.gmean * (1 - g.gmean), 0)
+         ) AS eta_sq
+  FROM by_level AS b JOIN grand AS g USING (study_id, meta)
+  GROUP BY b.study_id, b.meta, g.n_tot, g.gmean
+),
+
+p AS (
+  SELECT format_id,
+         MAX(IF(param_name='min_cut_base', CAST(param_value AS INT64),   NULL)) AS min_base,
+         MAX(IF(param_name='min_eta_sq',   CAST(param_value AS FLOAT64), NULL)) AS min_eta
+  FROM ${CONFIG}.banner_params GROUP BY format_id
+)
+
+SELECT
+  q.study_id, q.meta, q.display_order, q.tabulation_kind, q.response_mode,
+  q.exposure_phase, q.n_items, q.n_respondents,
+  l.n_levels, l.min_code, l.max_code, l.sample_labels,
+  e.min_level_base, e.eta_sq,
+  e.eta_sq * LOG(GREATEST(IFNULL(e.min_level_base, 2), 2)) AS rank_score,
+  (q.tabulation_kind = 'CODED'
+   AND q.exposure_phase = 'pre'
+   AND q.response_mode = 'single'
+   AND l.n_levels BETWEEN 2 AND 10
+   AND IFNULL(e.min_level_base, 0) >= p.min_base
+   AND IFNULL(e.eta_sq, 0) >= p.min_eta) AS is_cut_candidate
+FROM q
+LEFT JOIN levels AS l USING (study_id, meta)
+LEFT JOIN eta    AS e USING (study_id, meta)
+LEFT JOIN p            USING (format_id)
+ORDER BY study_id, rank_score DESC NULLS LAST, display_order

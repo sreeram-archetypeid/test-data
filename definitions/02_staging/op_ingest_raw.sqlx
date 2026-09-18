@@ -1,0 +1,88 @@
+config {
+  type: "operations",
+  schema: "banner_raw",
+  name: "op_ingest_raw",
+  description: "GCS -> banner_raw.file_cell. The ARENA export envelope is fixed (persona block + optional aat block + N x 7 question block), so only the question count varies. Columns are discovered from INFORMATION_SCHEMA and unpivoted to cells, preserving ordinal position.",
+  hasOutput: false,
+  tags: ["ingest"]
+}
+
+js { const { CONFIG, RAW } = require("includes/constants"); }
+
+-- col_ordinal is load-bearing: it is the only record of questionnaire
+-- order, and dim_question.display_order depends on it. The previous
+-- pipeline dropped it, which is why table order came out alphabetical.
+
+DECLARE studies ARRAY<STRUCT<study_id STRING, format_id STRING, gcs_prefix STRING>>;
+DECLARE i INT64 DEFAULT 0;
+DECLARE s STRUCT<study_id STRING, format_id STRING, gcs_prefix STRING>;
+DECLARE ext_short STRING;
+DECLARE cast_list STRING;
+DECLARE name_list STRING;
+
+SET studies = ARRAY(
+  SELECT AS STRUCT r.study_id, r.format_id, r.gcs_prefix
+  FROM ${CONFIG}.study_registry AS r
+  JOIN ${CONFIG}.format_registry AS f USING (format_id)
+  WHERE r.status = 'pending' AND IFNULL(f.active, TRUE)
+);
+
+WHILE i < ARRAY_LENGTH(studies) DO
+  SET s = studies[OFFSET(i)];
+  SET ext_short = CONCAT('ext_', REPLACE(s.study_id, '-', '_'));
+
+  -- 1. All-STRING external table. No schema asserted, so a new
+  --    questionnaire length cannot break the load.
+  EXECUTE IMMEDIATE FORMAT("""
+    CREATE OR REPLACE EXTERNAL TABLE ${RAW}.%s
+    OPTIONS (
+      format = 'CSV',
+      uris = ['%s/*.csv'],
+      skip_leading_rows = 1,
+      allow_quoted_newlines = TRUE,
+      allow_jagged_rows = TRUE,
+      ignore_unknown_values = TRUE,
+      max_bad_records = 0
+    )
+  """, ext_short, s.gcs_prefix);
+
+  -- 2. Discover the inferred columns.
+  EXECUTE IMMEDIATE FORMAT("""
+    SELECT
+      STRING_AGG(FORMAT('CAST(`%%s` AS STRING) AS `%%s`', column_name, column_name), ', '
+                 ORDER BY ordinal_position),
+      STRING_AGG(FORMAT('`%%s`', column_name), ', ' ORDER BY ordinal_position)
+    FROM ${RAW}.INFORMATION_SCHEMA.COLUMNS
+    WHERE table_name = '%s'
+  """, ext_short)
+  INTO cast_list, name_list;
+
+  -- 3. Unpivot to cells.
+  EXECUTE IMMEDIATE FORMAT("""
+    INSERT INTO ${RAW}.file_cell
+      (study_id, format_id, source_file, row_ix, col_ordinal, header, cell_value, ingested_at)
+    SELECT
+      '%s', '%s', u._FILE_NAME, u.row_ix, c.ordinal_position,
+      u.header, NULLIF(TRIM(u.cell_value), ''), CURRENT_TIMESTAMP()
+    FROM (
+      SELECT * FROM (
+        SELECT _FILE_NAME,
+               ROW_NUMBER() OVER (PARTITION BY _FILE_NAME) AS row_ix,
+               %s
+        FROM ${RAW}.%s
+      )
+      UNPIVOT (cell_value FOR header IN (%s))
+    ) AS u
+    LEFT JOIN ${RAW}.INFORMATION_SCHEMA.COLUMNS AS c
+      ON c.table_name = '%s' AND c.column_name = u.header
+  """, s.study_id, s.format_id, cast_list, ext_short, name_list, ext_short);
+
+  INSERT INTO ${CONFIG}.ingest_log (study_id, ingested_at, status)
+  VALUES (s.study_id, CURRENT_TIMESTAMP(), 'ok');
+
+  UPDATE ${CONFIG}.study_registry
+     SET status = 'ingested', detected_at = CURRENT_TIMESTAMP()
+   WHERE study_id = s.study_id;
+
+  SET i = i + 1;
+END WHILE;

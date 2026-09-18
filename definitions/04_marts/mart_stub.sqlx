@@ -1,0 +1,121 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "mart_stub",
+  description: "One row per study x question x column x stub. Single figure-level table; the old mart_banner and mart_stubs each rebuilt the same cuts CTE.",
+  uniqueKey: ["study_id","question_key","column_id","stub_key"],
+  bigquery: { clusterBy: ["study_id","question_key"] },
+  tags: ["marts"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+WITH
+-- Responses crossed with every column the respondent belongs to.
+-- One join, not six UNION ALLs.
+rxc AS (
+  SELECT
+    f.study_id, f.format_id, f.question_key, f.meta, f.item_text,
+    f.respondent_id, f.option_code, f.option_label,
+    m.column_id
+  FROM ${ref("fct_response")} AS f
+  JOIN ${ref("int_cut_member")} AS m
+    ON m.study_id = f.study_id AND m.respondent_id = f.respondent_id
+  WHERE f.study_id IN (${BUILD_QUEUE})
+    AND f.is_primary_run AND f.is_valid_response
+),
+
+-- Base = respondents with a valid answer to this question in this
+-- column. Derived, never configured: this is what makes
+-- "Base: KNOW SOUTHTOWN GAMES" fall out without a hand-written filter.
+bases AS (
+  SELECT study_id, question_key, column_id, COUNT(DISTINCT respondent_id) AS n_base
+  FROM rxc GROUP BY 1, 2, 3
+),
+
+-- Stub labels are read from the data, in punch order. No scale_stubs
+-- config, no per-question hand mapping.
+stub_order AS (
+  SELECT study_id, question_key, option_code, option_label,
+         option_code * 10 AS stub_sort
+  FROM rxc
+  GROUP BY 1, 2, 3, 4
+),
+
+option_counts AS (
+  SELECT
+    r.study_id, r.question_key, r.column_id,
+    CONCAT('opt_', CAST(r.option_code AS STRING)) AS stub_key,
+    'option' AS stub_kind,
+    o.option_label AS stub_label, o.stub_sort, FALSE AS indent,
+    COUNT(DISTINCT r.respondent_id) AS n_stub
+  FROM rxc AS r
+  JOIN stub_order AS o
+    USING (study_id, question_key, option_code, option_label)
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+-- NETs are the one editorial grouping the data cannot supply.
+net_counts AS (
+  SELECT
+    r.study_id, r.question_key, r.column_id,
+    CONCAT('net_', n.net_label) AS stub_key,
+    'net' AS stub_kind,
+    n.net_label AS stub_label, n.net_sort AS stub_sort, FALSE AS indent,
+    COUNT(DISTINCT IF(r.option_code IN UNNEST(n.codes), r.respondent_id, NULL)) AS n_stub
+  FROM rxc AS r
+  JOIN ${CONFIG}.net_def AS n
+    ON n.format_id = r.format_id AND n.meta = r.meta
+   AND (n.item_pattern IS NULL OR REGEXP_CONTAINS(IFNULL(r.item_text,''), n.item_pattern))
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+all_stubs AS (
+  SELECT * FROM option_counts UNION ALL SELECT * FROM net_counts
+),
+
+q AS (
+  SELECT study_id, question_key, meta, question_text, item_text,
+         display_order, base_label, response_mode
+  FROM ${ref("dim_question")}
+  WHERE study_id IN (${BUILD_QUEUE}) AND tabulation_kind = 'CODED'
+)
+
+SELECT
+  b.study_id, q.question_key, q.meta, q.question_text, q.item_text,
+  q.display_order, q.base_label, b.column_id,
+  'base' AS stub_kind, 'base' AS stub_key, 'Total' AS stub_label,
+  0 AS stub_sort, FALSE AS indent,
+  b.n_base, b.n_base AS n_stub, CAST(NULL AS FLOAT64) AS pct
+FROM bases AS b JOIN q USING (study_id, question_key)
+
+UNION ALL
+
+SELECT
+  s.study_id, q.question_key, q.meta, q.question_text, q.item_text,
+  q.display_order, q.base_label, s.column_id,
+  s.stub_kind, s.stub_key,
+  IF(s.indent, CONCAT('  ', s.stub_label), s.stub_label),
+  s.stub_sort, s.indent,
+  b.n_base, s.n_stub, SAFE_DIVIDE(s.n_stub, b.n_base)
+FROM all_stubs AS s
+JOIN bases AS b USING (study_id, question_key, column_id)
+JOIN q        USING (study_id, question_key)
+
+UNION ALL
+
+-- SIGMA only for single-response questions. The old select_out emitted
+-- SIGMA = 1.0 for every SELECT, which is wrong for multi-punch: those
+-- sum past 100% and the reference banner omits SIGMA entirely
+-- (Tables 44, 45, 49).
+SELECT
+  b.study_id, q.question_key, q.meta, q.question_text, q.item_text,
+  q.display_order, q.base_label, b.column_id,
+  'sigma', 'sigma', 'SIGMA', 9999, FALSE,
+  b.n_base, b.n_base, 1.0
+FROM bases AS b JOIN q USING (study_id, question_key)
+WHERE q.response_mode = 'single'

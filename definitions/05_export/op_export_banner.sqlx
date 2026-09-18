@@ -1,0 +1,89 @@
+config {
+  type: "operations",
+  schema: "banner",
+  name: "op_export_banner",
+  description: "EXPORT DATA to GCS: banner CSV, conversion CSV, verbatims CSV, and a DQ summary. Then flip study_registry to published.",
+  hasOutput: false,
+  dependencies: ["mart_banner_render", "mart_conversion", "mart_openend_verbatim"],
+  tags: ["export"]
+}
+
+js { const { CONFIG, PUBLISH_QUEUE } = require("includes/constants"); }
+
+-- CSV is fully native. EXPORT DATA shards output, so each artifact lands
+-- as banner_000000000000.csv etc. under its own prefix; that is the
+-- documented BigQuery behaviour, not a bug.
+
+DECLARE studies ARRAY<STRING>;
+DECLARE i INT64 DEFAULT 0;
+DECLARE sid STRING;
+DECLARE ncols INT64;
+DECLARE cell_sel STRING;
+DECLARE bucket STRING DEFAULT '${dataform.projectConfig.vars.export_bucket}';
+
+SET studies = ARRAY(SELECT study_id FROM (${PUBLISH_QUEUE}));
+
+WHILE i < ARRAY_LENGTH(studies) DO
+  SET sid = studies[OFFSET(i)];
+
+  SET ncols = (SELECT MAX(ARRAY_LENGTH(cells))
+               FROM ${ref("mart_banner_render")} WHERE study_id = sid);
+
+  SET cell_sel = (
+    SELECT STRING_AGG(FORMAT('IFNULL(cells[SAFE_OFFSET(%d)], "") AS c%d', n, n), ', ' ORDER BY n)
+    FROM UNNEST(GENERATE_ARRAY(0, IFNULL(ncols, 1) - 1)) AS n
+  );
+
+  -- 1. The banner.
+  EXECUTE IMMEDIATE FORMAT("""
+    EXPORT DATA OPTIONS (
+      uri = '%s/%s/banner/banner_*.csv',
+      format = 'CSV', overwrite = TRUE, header = FALSE
+    ) AS
+    SELECT line_label, %s
+    FROM ${ref("mart_banner_render")}
+    WHERE study_id = '%s'
+    ORDER BY table_no, line_sort
+  """, bucket, sid, cell_sel, sid);
+
+  -- 2. The conversion table. This is the artifact the study is judged on.
+  EXECUTE IMMEDIATE FORMAT("""
+    EXPORT DATA OPTIONS (
+      uri = '%s/%s/conversion/conversion_*.csv',
+      format = 'CSV', overwrite = TRUE, header = TRUE
+    ) AS
+    SELECT banner_group, cell_label, column_label, value_source,
+           n_base, n_converted, top_box_pct, delta_vs_total, z_vs_total
+    FROM ${ref("mart_conversion")}
+    WHERE study_id = '%s'
+    ORDER BY group_sort, cell_sort, column_sort
+  """, bucket, sid, sid);
+
+  -- 3. Verbatims, uncoded.
+  EXECUTE IMMEDIATE FORMAT("""
+    EXPORT DATA OPTIONS (
+      uri = '%s/%s/verbatims/verbatims_*.csv',
+      format = 'CSV', overwrite = TRUE, header = TRUE
+    ) AS
+    SELECT respondent_id, cell_label, meta, question_text, verbatim
+    FROM ${ref("mart_openend_verbatim")}
+    WHERE study_id = '%s'
+  """, bucket, sid, sid);
+
+  -- 4. Data quality: every value that failed a typed parse.
+  EXECUTE IMMEDIATE FORMAT("""
+    EXPORT DATA OPTIONS (
+      uri = '%s/%s/dq/cast_rejects_*.csv',
+      format = 'CSV', overwrite = TRUE, header = TRUE
+    ) AS
+    SELECT source_file, row_ix, header, cell_value, expected_type, reason
+    FROM ${ref("stg_cast_reject")}
+    WHERE study_id = '%s'
+  """, bucket, sid, sid);
+
+  UPDATE ${CONFIG}.study_registry
+     SET status = 'published', published_at = CURRENT_TIMESTAMP()
+   WHERE study_id = sid;
+
+  SET i = i + 1;
+END WHILE;

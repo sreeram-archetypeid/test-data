@@ -1,0 +1,28 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_cast_reject_rate",
+  description: "Fails the run when typed-parse failures exceed max_cast_reject_pct for a study. Rows here mean data is being lost.",
+  tags: ["dq"]
+}
+
+js { const { CONFIG } = require("includes/constants"); }
+
+WITH rej AS (
+  SELECT study_id, COUNT(*) AS n_rej FROM ${ref("stg_cast_reject")} GROUP BY 1
+),
+tot AS (
+  SELECT study_id, COUNT(*) AS n_cells FROM ${ref("stg_cell")} GROUP BY 1
+),
+p AS (
+  SELECT r.study_id, CAST(b.param_value AS FLOAT64) AS max_pct
+  FROM ${CONFIG}.study_registry AS r
+  JOIN ${CONFIG}.banner_params AS b
+    ON b.format_id = r.format_id AND b.param_name = 'max_cast_reject_pct'
+)
+SELECT t.study_id, IFNULL(r.n_rej, 0) AS n_rej, t.n_cells,
+       100 * SAFE_DIVIDE(IFNULL(r.n_rej, 0), t.n_cells) AS reject_pct, p.max_pct
+FROM tot AS t
+LEFT JOIN rej AS r USING (study_id)
+JOIN p USING (study_id)
+WHERE 100 * SAFE_DIVIDE(IFNULL(r.n_rej, 0), t.n_cells) > p.max_pct

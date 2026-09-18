@@ -1,0 +1,115 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "int_respondent_attr",
+  description: "Long respondent attributes. Replaces the four fixed demographic columns, which had nowhere to put ABR kid-panel fields. Adds derived age_band, age_group and cell.",
+  uniqueKey: ["study_id","respondent_id","attr_name"],
+  bigquery: { clusterBy: ["study_id","attr_name"] },
+  tags: ["curated"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue, LEAD_INT } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+WITH
+persona AS (
+  SELECT
+    c.study_id, c.format_id, c.header, c.cell_value,
+    i.respondent_id
+  FROM ${ref("stg_cell")} AS c
+  JOIN (
+    SELECT DISTINCT study_id, source_file, row_ix, respondent_id
+    FROM ${ref("stg_answer")}
+  ) AS i USING (study_id, source_file, row_ix)
+  WHERE c.block = 'persona' AND c.cell_value IS NOT NULL
+    AND c.study_id IN (${BUILD_QUEUE})
+),
+
+mapped AS (
+  SELECT DISTINCT
+    p.study_id, p.format_id, p.respondent_id,
+    m.attr_name, m.attr_role, m.attr_sort, p.cell_value AS raw_value
+  FROM persona AS p
+  JOIN ${CONFIG}.attr_field_map AS m
+    ON m.format_id = p.format_id
+   AND (m.study_id IS NULL OR m.study_id = p.study_id)
+   AND REGEXP_CONTAINS(p.header, m.source_field_regex)
+),
+
+-- Canonicalise. Unmatched values pass through trimmed rather than being
+-- dropped, so a new response option is visible instead of silently gone.
+canon AS (
+  SELECT
+    m.study_id, m.format_id, m.respondent_id, m.attr_name, m.attr_role, m.attr_sort,
+    m.raw_value,
+    IFNULL(v.canonical_value, TRIM(m.raw_value)) AS attr_value,
+    v.value_sort
+  FROM mapped AS m
+  LEFT JOIN ${CONFIG}.attr_value_map AS v
+    ON v.format_id = m.format_id AND v.attr_name = m.attr_name
+   AND REGEXP_CONTAINS(LOWER(m.raw_value), LOWER(v.match_regex))
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY m.study_id, m.respondent_id, m.attr_name
+    ORDER BY IFNULL(v.rule_sort, 9999)
+  ) = 1
+),
+
+-- Age arrives mixed: '8', '25-44', '32-54', '9 years old'. Take the
+-- leading integer; anything with no integer at all is already logged in
+-- stg_cast_reject.
+age_num AS (
+  SELECT study_id, format_id, respondent_id,
+         ${LEAD_INT('raw_value')} AS age_low
+  FROM canon WHERE attr_name = 'age'
+),
+
+age_derived AS (
+  SELECT a.study_id, a.format_id, a.respondent_id,
+         'age_band' AS attr_name, 'demographic' AS attr_role, 20 AS attr_sort,
+         CAST(a.age_low AS STRING) AS raw_value,
+         b.band_label AS attr_value, b.band_sort AS value_sort
+  FROM age_num AS a
+  JOIN ${CONFIG}.age_band AS b
+    ON b.format_id = a.format_id
+   AND (b.study_id IS NULL OR b.study_id = a.study_id)
+   AND a.age_low BETWEEN b.age_low AND b.age_high
+  WHERE a.age_low IS NOT NULL
+
+  UNION ALL
+
+  SELECT a.study_id, a.format_id, a.respondent_id,
+         'age_group', 'demographic', 21,
+         CAST(a.age_low AS STRING),
+         IF(a.age_low < p.split_at, CONCAT('<', CAST(p.split_at AS STRING)),
+                                    CONCAT(CAST(p.split_at AS STRING), '+')),
+         IF(a.age_low < p.split_at, 1, 2)
+  FROM age_num AS a
+  JOIN (
+    SELECT format_id, study_id, CAST(param_value AS INT64) AS split_at
+    FROM ${CONFIG}.banner_params WHERE param_name = 'age_split_at'
+  ) AS p
+    ON p.format_id = a.format_id AND (p.study_id IS NULL OR p.study_id = a.study_id)
+  WHERE a.age_low IS NOT NULL
+),
+
+-- The exposure cell, so int_cut_member can nest columns by it.
+cell_attr AS (
+  SELECT d.study_id, d.format_id, d.respondent_id,
+         'cell' AS attr_name, 'cell' AS attr_role, 1 AS attr_sort,
+         d.cell_label AS raw_value, d.cell_label AS attr_value,
+         DENSE_RANK() OVER (PARTITION BY d.study_id ORDER BY d.cell_label) AS value_sort
+  FROM ${ref("dim_respondent")} AS d
+  WHERE d.study_id IN (${BUILD_QUEUE}) AND d.cell_label IS NOT NULL
+)
+
+SELECT study_id, format_id, respondent_id, attr_name, attr_role, attr_sort,
+       raw_value, attr_value, value_sort
+FROM (
+  SELECT * FROM canon
+  UNION ALL SELECT * FROM age_derived
+  UNION ALL SELECT * FROM cell_attr
+)
+WHERE attr_value IS NOT NULL AND attr_value != ''

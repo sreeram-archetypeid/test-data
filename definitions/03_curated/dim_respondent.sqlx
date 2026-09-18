@@ -1,0 +1,28 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "dim_respondent",
+  description: "One row per study x respondent. Attributes live long in int_respondent_attr; this is the spine plus run and cell.",
+  uniqueKey: ["study_id","respondent_id"],
+  bigquery: { clusterBy: ["study_id"] },
+  tags: ["curated"]
+}
+
+js { const { BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+SELECT
+  study_id,
+  format_id,
+  respondent_id,
+  ANY_VALUE(cell_label)                        AS cell_label,
+  ARRAY_AGG(DISTINCT run_id      IGNORE NULLS) AS run_ids,
+  ARRAY_AGG(DISTINCT source_file IGNORE NULLS) AS source_files,
+  COUNT(DISTINCT run_id)                       AS n_runs,
+  COUNT(*)                                     AS n_answers
+FROM ${ref("stg_answer")}
+WHERE study_id IN (${BUILD_QUEUE}) AND respondent_id IS NOT NULL
+GROUP BY study_id, format_id, respondent_id

@@ -1,0 +1,126 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "int_cut_member",
+  description: "Respondent membership in every banner column, resolved from banner_config.cut_def. Replaces the six hand-written UNION ALL cut blocks and the CASE-derived columns in the old int_cut_attrs. Adding a banner group is an INSERT; this file never changes.",
+  uniqueKey: ["study_id","respondent_id","column_id"],
+  bigquery: { clusterBy: ["study_id","column_id"] },
+  tags: ["curated"]
+}
+
+js {
+  const { CONFIG, BUILD_QUEUE, inQueue } = require("includes/constants");
+  const DEPTH = Number(dataform.projectConfig.vars.composite_depth || 3);
+}
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+WITH
+defs AS (
+  SELECT r.study_id, r.format_id, d.*
+  FROM ${CONFIG}.study_registry AS r
+  JOIN ${CONFIG}.cut_def AS d ON d.banner_plan_id = r.banner_plan_id
+  WHERE r.study_id IN (${BUILD_QUEUE})
+),
+
+universe AS (
+  SELECT study_id, respondent_id FROM ${ref("dim_respondent")}
+  WHERE study_id IN (${BUILD_QUEUE})
+),
+
+leaf_all AS (
+  SELECT d.study_id, d.cut_id, u.respondent_id
+  FROM defs AS d JOIN universe AS u USING (study_id)
+  WHERE d.rule_kind = 'all'
+),
+
+leaf_attr AS (
+  SELECT d.study_id, d.cut_id, a.respondent_id
+  FROM defs AS d
+  JOIN ${ref("int_respondent_attr")} AS a
+    ON a.study_id = d.study_id AND a.attr_name = d.attr_name
+   AND a.attr_value IN UNNEST(d.attr_values)
+  WHERE d.rule_kind = 'attr'
+),
+
+-- Response cuts are why fct_response must keep option_code: every cut in
+-- the reference banner is defined on the punch ("P1 @ GFAN1",
+-- "P3 DOWN @ VGFRAN1"), not on the answer label.
+leaf_response AS (
+  SELECT DISTINCT d.study_id, d.cut_id, f.respondent_id
+  FROM defs AS d
+  JOIN ${ref("fct_response")} AS f
+    ON f.study_id = d.study_id AND f.meta = d.meta AND f.is_primary_run
+  WHERE d.rule_kind = 'response'
+    AND f.option_code IS NOT NULL
+    AND (d.item_pattern IS NULL
+         OR REGEXP_CONTAINS(IFNULL(f.item_text, f.question_text), d.item_pattern))
+    AND CASE d.code_op
+          WHEN 'in'  THEN f.option_code IN UNNEST(d.codes)
+          WHEN 'lte' THEN f.option_code <= d.codes[SAFE_OFFSET(0)]
+          WHEN 'gte' THEN f.option_code >= d.codes[SAFE_OFFSET(0)]
+          ELSE FALSE
+        END
+),
+
+d0 AS (
+  SELECT * FROM leaf_all
+  UNION ALL SELECT * FROM leaf_attr
+  UNION ALL SELECT * FROM leaf_response
+),
+
+${(() => {
+  let sql = "";
+  for (let k = 1; k <= DEPTH; k++) {
+    const prev = `d${k - 1}`;
+    sql += `
+d${k} AS (
+  SELECT * FROM ${prev}
+  UNION ALL
+  SELECT c.study_id, c.cut_id, m.respondent_id
+  FROM defs AS c
+  CROSS JOIN UNNEST(c.child_cut_ids) AS child
+  JOIN ${prev} AS m ON m.study_id = c.study_id AND m.cut_id = child
+  WHERE c.rule_kind IN ('and','or')
+  GROUP BY c.study_id, c.cut_id, m.respondent_id, c.rule_kind, ARRAY_LENGTH(c.child_cut_ids)
+  HAVING c.rule_kind = 'or'
+      OR COUNT(DISTINCT child) = ARRAY_LENGTH(c.child_cut_ids)
+),`;
+  }
+  return sql;
+})()}
+
+resolved AS (SELECT DISTINCT study_id, cut_id, respondent_id FROM d${DEPTH}),
+
+cell_of AS (
+  SELECT study_id, respondent_id, attr_value AS cell_label, value_sort AS cell_sort
+  FROM ${ref("int_respondent_attr")} WHERE attr_name = 'cell'
+)
+
+-- Not nested: one column, cells pooled.
+SELECT
+  d.study_id, d.banner_plan_id, d.cut_id, d.cut_id AS column_id,
+  CAST(NULL AS STRING) AS cell_label,
+  d.banner_group, d.group_sort, d.column_label, d.column_sort,
+  0 AS cell_sort, d.is_printed, d.min_base, r.respondent_id
+FROM defs AS d
+JOIN resolved AS r ON r.study_id = d.study_id AND r.cut_id = d.cut_id
+WHERE NOT IFNULL(d.nest_by_cell, FALSE)
+
+UNION ALL
+
+-- Nested: one column per exposure cell (header row 2 of the reference
+-- banner). Monadic studies have no 'cell' attribute, so this yields
+-- nothing and the band collapses, which is correct for ABR.
+SELECT
+  d.study_id, d.banner_plan_id, d.cut_id,
+  CONCAT(d.cut_id, '__', c.cell_label) AS column_id,
+  c.cell_label,
+  d.banner_group, d.group_sort, d.column_label, d.column_sort,
+  IFNULL(c.cell_sort, 0), d.is_printed, d.min_base, r.respondent_id
+FROM defs AS d
+JOIN resolved AS r ON r.study_id = d.study_id AND r.cut_id = d.cut_id
+JOIN cell_of AS c  ON c.study_id = d.study_id AND c.respondent_id = r.respondent_id
+WHERE IFNULL(d.nest_by_cell, FALSE)

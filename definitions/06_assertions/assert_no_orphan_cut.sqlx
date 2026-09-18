@@ -1,0 +1,19 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_no_orphan_cut",
+  description: "A printed cut_def row that resolved to zero respondents. Usually an inverted operator or a stale attr_value — the exact class of bug that produced the zero-match cut_heavy_cinema column previously.",
+  tags: ["dq"]
+}
+
+js { const { CONFIG, PUBLISH_QUEUE } = require("includes/constants"); }
+
+SELECT r.study_id, d.cut_id, d.banner_group, d.column_label
+FROM ${CONFIG}.study_registry AS r
+JOIN ${CONFIG}.cut_def AS d ON d.banner_plan_id = r.banner_plan_id
+LEFT JOIN (
+  SELECT DISTINCT study_id, cut_id FROM ${ref("int_cut_member")}
+) AS m ON m.study_id = r.study_id AND m.cut_id = d.cut_id
+WHERE r.study_id IN (${PUBLISH_QUEUE})
+  AND IFNULL(d.is_printed, FALSE)
+  AND m.cut_id IS NULL

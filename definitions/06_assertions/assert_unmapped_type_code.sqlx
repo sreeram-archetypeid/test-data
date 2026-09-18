@@ -1,0 +1,12 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_unmapped_type_code",
+  description: "A Q{n}_type value not present in type_code_map. A new type means the taxonomy changed and nothing downstream should be trusted until it is mapped.",
+  tags: ["dq"]
+}
+
+SELECT DISTINCT study_id, format_id, type_code, COUNT(*) AS n
+FROM ${ref("stg_answer")}
+WHERE tabulation_kind IS NULL
+GROUP BY 1, 2, 3

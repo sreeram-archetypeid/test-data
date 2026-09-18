@@ -1,0 +1,11 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_conversion_provenance",
+  description: "Every conversion figure must declare its provenance. A NULL value_source means a top-box number of unknown origin is about to reach a client.",
+  tags: ["dq","conversion"]
+}
+
+SELECT study_id, column_id, value_source
+FROM ${ref("mart_conversion")}
+WHERE value_source IS NULL OR value_source NOT IN ('respondent','derived')

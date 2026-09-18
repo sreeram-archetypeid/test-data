@@ -1,0 +1,1 @@
+config { type: "declaration", schema: "banner_config", name: "format_registry" }

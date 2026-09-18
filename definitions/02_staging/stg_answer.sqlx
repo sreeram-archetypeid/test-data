@@ -1,0 +1,100 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "stg_answer",
+  description: "One row per respondent x question index, with the seven Q-block fields pivoted back together. meta is a cell value, not a header token.",
+  uniqueKey: ["study_id","source_file","row_ix","q_index"],
+  bigquery: { clusterBy: ["study_id","meta"] },
+  tags: ["staging"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue, LEAD_INT } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+WITH
+-- Respondent id is whichever persona column the format nominates.
+ids AS (
+  SELECT c.study_id, c.source_file, c.row_ix, ANY_VALUE(c.cell_value) AS respondent_id
+  FROM ${ref("stg_cell")} AS c
+  JOIN ${CONFIG}.format_registry AS f USING (format_id)
+  WHERE c.header = f.id_col
+  GROUP BY 1, 2, 3
+),
+
+-- run_id and cell come from the filename or group_name, by config regex.
+-- FF: run 2_1X / 2_2 / 2_3, cell G or S.  ABR: single run, monadic.
+grp AS (
+  SELECT study_id, source_file, row_ix, ANY_VALUE(cell_value) AS group_name
+  FROM ${ref("stg_cell")}
+  WHERE header = 'group_name'
+  GROUP BY 1, 2, 3
+),
+
+ctx AS (
+  SELECT
+    i.study_id, i.source_file, i.row_ix, i.respondent_id,
+    IFNULL(REGEXP_EXTRACT(i.source_file, f.run_id_regex), 'r1') AS run_id,
+    REGEXP_EXTRACT(
+      IF(f.cell_source = 'group_name', g.group_name, i.source_file),
+      IFNULL(f.cell_regex, r'(?!)')
+    ) AS cell_label
+  FROM ids AS i
+  JOIN grp AS g USING (study_id, source_file, row_ix)
+  JOIN ${CONFIG}.study_registry AS r ON r.study_id = i.study_id
+  JOIN ${CONFIG}.format_registry AS f ON f.format_id = r.format_id
+),
+
+-- Pivot the seven Q-block fields back into one row per question.
+q AS (
+  SELECT
+    study_id, format_id, source_file, row_ix, q_index,
+    MIN(col_ordinal) AS col_ordinal,
+    MAX(IF(q_field = 'question',     cell_value, NULL)) AS question_text,
+    MAX(IF(q_field = 'meta',         cell_value, NULL)) AS meta,
+    MAX(IF(q_field = 'type',         cell_value, NULL)) AS type_code,
+    MAX(IF(q_field = 'rating_label', cell_value, NULL)) AS rating_label,
+    MAX(IF(q_field = 'rating',       cell_value, NULL)) AS rating_raw,
+    MAX(IF(q_field = 'selected',     cell_value, NULL)) AS selected_raw,
+    MAX(IF(q_field = 'qual',         cell_value, NULL)) AS qual_raw
+  FROM ${ref("stg_cell")}
+  WHERE block = 'question'
+  GROUP BY 1, 2, 3, 4, 5
+)
+
+SELECT
+  q.study_id,
+  q.format_id,
+  q.source_file,
+  x.run_id,
+  x.cell_label,
+  x.respondent_id,
+  q.row_ix,
+  q.q_index,
+  q.col_ordinal,
+  q.meta,
+  q.question_text,
+  q.type_code,
+  t.tabulation_kind,
+  t.response_mode,
+  t.value_field,
+  t.has_labels,
+  q.rating_label,
+  q.rating_raw,
+  q.selected_raw,
+  q.qual_raw,
+  -- The grid item. FF bakes it into the question text ("...the Action
+  -- genre..."); there is no separate item field in the export. Derived
+  -- here as the trailing distinguishing clause, and only used to
+  -- disambiguate items sharing a meta.
+  IF(COUNT(*) OVER (PARTITION BY q.study_id, q.meta) >
+     COUNT(DISTINCT q.question_text) OVER (PARTITION BY q.study_id, q.meta),
+     NULL, q.question_text) AS item_text
+FROM q
+JOIN ctx AS x
+  ON x.study_id = q.study_id AND x.source_file = q.source_file AND x.row_ix = q.row_ix
+LEFT JOIN ${CONFIG}.type_code_map AS t
+  ON t.format_id = q.format_id AND t.type_code = q.type_code
+WHERE q.meta IS NOT NULL

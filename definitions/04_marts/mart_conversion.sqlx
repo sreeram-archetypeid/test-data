@@ -1,0 +1,110 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "mart_conversion",
+  description: "THE primary artifact. Top-box conversion by banner column, with base, standard error and a two-proportion z-test against Total. Carries value_source so a model-derived metric can never be mistaken for a respondent answer.",
+  uniqueKey: ["study_id","column_id"],
+  bigquery: { clusterBy: ["study_id"] },
+  tags: ["marts","conversion"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+-- Conversion is binary: top box or not. Neutral does not convert and is
+-- not a third state here. The full frequency distribution still prints
+-- in the banner (mart_stub), because the human W-tabs this is calibrated
+-- against show it — but the metric the study is judged on is this one.
+
+WITH reg AS (
+  SELECT study_id, format_id, headline_meta, topbox_codes
+  FROM ${CONFIG}.study_registry WHERE study_id IN (${BUILD_QUEUE})
+),
+
+-- Path A: a real closed-ended conversion question (FF POSTINT).
+respondent_level AS (
+  SELECT
+    f.study_id, f.respondent_id,
+    MAX(IF(f.option_code IN UNNEST(g.topbox_codes), 1, 0)) AS converted,
+    'respondent' AS value_source
+  FROM ${ref("fct_response")} AS f
+  JOIN reg AS g ON g.study_id = f.study_id AND g.headline_meta = f.meta
+  WHERE f.is_primary_run AND f.is_valid_response
+  GROUP BY 1, 2
+),
+
+-- Path B: no closed-ended question exists (ABR). The only available
+-- signal is the aat block, which is model-generated from the verbatim.
+-- It is used, but never silently: value_source = 'derived' travels with
+-- every figure and the export prints a provenance line.
+derived_level AS (
+  SELECT
+    c.study_id,
+    i.respondent_id,
+    IF(REGEXP_CONTAINS(LOWER(c.cell_value), r'^definitely interested|^probably interested'), 1, 0) AS converted,
+    'derived' AS value_source
+  FROM ${ref("stg_cell")} AS c
+  JOIN (SELECT DISTINCT study_id, source_file, row_ix, respondent_id FROM ${ref("stg_answer")}) AS i
+    USING (study_id, source_file, row_ix)
+  JOIN reg AS g ON g.study_id = c.study_id
+  WHERE c.block = 'aat' AND c.header = 'aat_top_box_category'
+    AND c.cell_value IS NOT NULL
+    AND g.headline_meta IS NULL
+),
+
+respondent_metric AS (
+  SELECT * FROM respondent_level
+  UNION ALL
+  SELECT d.* FROM derived_level AS d
+  WHERE NOT EXISTS (SELECT 1 FROM respondent_level AS r WHERE r.study_id = d.study_id)
+),
+
+per_column AS (
+  SELECT
+    m.study_id, c.column_id, c.banner_group, c.group_sort,
+    c.column_label, c.column_sort, c.cell_label, c.cell_sort,
+    ANY_VALUE(m.value_source) AS value_source,
+    COUNT(DISTINCT m.respondent_id) AS n_base,
+    SUM(m.converted) AS n_converted
+  FROM respondent_metric AS m
+  JOIN ${ref("int_cut_member")} AS c
+    ON c.study_id = m.study_id AND c.respondent_id = m.respondent_id
+  WHERE c.is_printed
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+scored AS (
+  SELECT *,
+    SAFE_DIVIDE(n_converted, n_base) AS top_box_pct,
+    SQRT(SAFE_DIVIDE(SAFE_DIVIDE(n_converted, n_base) *
+         (1 - SAFE_DIVIDE(n_converted, n_base)), n_base)) AS se
+  FROM per_column
+),
+
+tot AS (
+  SELECT study_id, top_box_pct AS total_pct, n_base AS total_n
+  FROM scored WHERE column_id = 'total'
+)
+
+SELECT
+  s.study_id, s.column_id, s.banner_group, s.group_sort,
+  s.cell_label, s.cell_sort, s.column_label, s.column_sort,
+  s.value_source,
+  s.n_base, s.n_converted, s.top_box_pct, s.se,
+  t.total_pct,
+  s.top_box_pct - t.total_pct AS delta_vs_total,
+  -- Two-proportion z against Total. Overlapping samples, so this is a
+  -- directional indicator, not a formal significance test.
+  SAFE_DIVIDE(
+    s.top_box_pct - t.total_pct,
+    NULLIF(SQRT(
+      (SAFE_DIVIDE(s.n_converted + t.total_pct * t.total_n, s.n_base + t.total_n)) *
+      (1 - SAFE_DIVIDE(s.n_converted + t.total_pct * t.total_n, s.n_base + t.total_n)) *
+      (SAFE_DIVIDE(1, s.n_base) + SAFE_DIVIDE(1, t.total_n))
+    ), 0)
+  ) AS z_vs_total
+FROM scored AS s
+JOIN tot AS t USING (study_id)

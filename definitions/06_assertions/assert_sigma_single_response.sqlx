@@ -1,0 +1,13 @@
+config {
+  type: "assertion",
+  schema: "banner_assertions",
+  name: "assert_sigma_single_response",
+  description: "For single-response questions the option percentages must sum to 1. Tolerance 0.5pp for rounding. Multi-punch questions are excluded by construction.",
+  tags: ["dq"]
+}
+
+SELECT study_id, question_key, column_id, SUM(pct) AS total_pct
+FROM ${ref("mart_stub")}
+WHERE stub_kind = 'option'
+GROUP BY 1, 2, 3
+HAVING ABS(SUM(pct) - 1.0) > 0.005

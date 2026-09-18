@@ -1,0 +1,36 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "stg_cell",
+  description: "Every raw cell classified into its envelope block: persona, aat, or question(index, field). Pure regex, no inference.",
+  uniqueKey: ["study_id","source_file","row_ix","col_ordinal"],
+  bigquery: { clusterBy: ["study_id","block"] },
+  tags: ["staging"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+SELECT
+  c.study_id,
+  c.format_id,
+  c.source_file,
+  c.row_ix,
+  c.col_ordinal,
+  c.header,
+  c.cell_value,
+  CASE
+    WHEN REGEXP_CONTAINS(c.header, f.question_col_regex)            THEN 'question'
+    WHEN f.aat_col_regex IS NOT NULL
+     AND REGEXP_CONTAINS(c.header, f.aat_col_regex)                 THEN 'aat'
+    WHEN REGEXP_CONTAINS(c.header, f.persona_col_regex)             THEN 'persona'
+    ELSE 'meta_file'
+  END AS block,
+  CAST(REGEXP_EXTRACT(c.header, r'^Q([0-9]+)_') AS INT64) AS q_index,
+  REGEXP_EXTRACT(c.header, r'^Q[0-9]+_(.+)$')             AS q_field
+FROM ${ref("file_cell")} AS c
+JOIN ${CONFIG}.format_registry AS f USING (format_id)
+WHERE c.study_id IN (${BUILD_QUEUE})

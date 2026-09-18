@@ -1,0 +1,388 @@
+meta,battery_item,question_text,option_code,option_label,ours_pct,theirs_pct,delta_pp,ours_base,theirs_base
+ACTIVITIES,Play video games,Approximately how often do you play video games?,1,Every day,0.3693,0.59,-22.1,398,800
+ACTIVITIES,Play video games,Approximately how often do you play video games?,2,Every week,0.4171,0.32,9.7,398,800
+ACTIVITIES,Play video games,Approximately how often do you play video games?,3,Every month,0.2085,0.09,11.9,398,800
+ACTIVITIES,Play video games,Approximately how often do you play video games?,4,Every 2-6 months,0.005,0.0,0.5,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,1,Every day,0.7588,0.86,-10.1,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,2,Every week,0.108,0.11,-0.2,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,3,Every month,0.0503,0.01,4.0,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,4,Every 2-6 months,0.0276,0.01,1.8,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,5,Once a year or less,0.0251,0.0,2.5,398,800
+ACTIVITIES,Scroll through social media,Approximately how often do you scroll through social media?,6,Never,0.0302,0.01,2.0,398,800
+ACTIVITIES,See movies in a theater,Approximately how often do you see movies in a theater?,2,Every week,0.0126,0.12,-10.7,396,800
+ACTIVITIES,See movies in a theater,Approximately how often do you see movies in a theater?,3,Every month,0.2828,0.49,-20.7,396,800
+ACTIVITIES,See movies in a theater,Approximately how often do you see movies in a theater?,4,Every 2-6 months,0.5,0.39,11.0,396,800
+ACTIVITIES,See movies in a theater,Approximately how often do you see movies in a theater?,5,Once a year or less,0.2045,0.0,20.5,396,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,1,Every day,0.3769,0.58,-20.3,398,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,2,Every week,0.5653,0.38,18.5,398,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,3,Every month,0.0176,0.03,-1.2,398,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,4,Every 2-6 months,0.0176,0.0,1.8,398,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,5,Once a year or less,0.005,0.0,0.5,398,800
+ACTIVITIES,Stream movies/series,Approximately how often do you stream movies/series?,6,Never,0.0176,0.01,0.8,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,1,Every day,0.0075,0.31,-30.2,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,2,Every week,0.309,0.4,-9.1,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,3,Every month,0.1357,0.12,1.6,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,4,Every 2-6 months,0.103,0.05,5.3,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,5,Once a year or less,0.2387,0.04,19.9,398,800
+ACTIVITIES,Watch sports on TV/streaming,Approximately how often do you watch sports on TV/streaming?,6,Never,0.206,0.08,12.6,398,800
+AUD1,,Would you say this new movie is…?,1,Mostly for boys/men,0.4849,0.53,-4.5,398,800
+AUD1,,Would you say this new movie is…?,3,Equally for all genders,0.5151,0.47,4.5,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,1,Younger teens 13-15,0.108,0.3,-19.2,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,2,Older teens 15-19,0.3116,0.5,-18.8,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,3,People in their 20’s,0.6834,0.55,13.3,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,4,People in their 30’s,0.6382,0.42,21.8,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,5,People in their 40’s,0.299,0.22,7.9,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,6,People in their 50’s and older,0.0653,0.06,0.5,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,7,Families,0.0603,0.04,2.0,398,800
+AUD2,,Who do you think would enjoy this new movie most? Please select all that apply.,8,All ages equally,0.0025,0.26,-25.7,398,800
+AUD3,,"After you have read the concept, does this feel like a movie that could appeal to people even if they know not",1,"Yes, definitely",0.3593,0.43,-7.1,398,800
+AUD3,,"After you have read the concept, does this feel like a movie that could appeal to people even if they know not",2,"Yes, somewhat",0.6407,0.43,21.1,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",1,A character I want to learn more about,0.005,0.27,-26.5,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",2,A character I want to root for,0.3342,0.32,1.4,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",3,Brave,0.206,0.38,-17.4,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",5,Confident,0.0075,0.34,-33.2,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",6,Cool,0.2286,0.23,-0.1,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",7,Determined,0.7387,0.46,27.9,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",8,Generic,0.0603,0.08,-2.0,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",9,Hard working,0.0352,0.23,-19.5,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",10,Heroic,0.3819,0.35,3.2,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",11,Honorable,0.2437,0.35,-10.6,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",12,Independent,0.0452,0.23,-18.5,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",15,Protective,0.1181,0.22,-10.2,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",16,Relatable,0.0302,0.15,-12.0,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",17,Skilled,0.4171,0.42,-0.3,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",18,Strong,0.1131,0.47,-35.7,398,800
+CHARDES,,"Based on the concept you just read, which words or phrases best describe the character of Terry Bogard? Please",19,Too one-dimensional,0.005,0.05,-4.5,398,800
+ELEMENT1,Geese Howard as the villain,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Geese",1,Increases my interest,0.9397,0.49,45.0,398,800
+ELEMENT1,Geese Howard as the villain,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Geese",2,Decreases my interest,0.0025,0.11,-10.7,398,800
+ELEMENT1,Geese Howard as the villain,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Geese",3,Does not change my interest,0.0578,0.4,-34.2,398,800
+ELEMENT1,How immersive the world seems,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+How i",1,Increases my interest,0.6734,0.61,6.3,398,800
+ELEMENT1,How immersive the world seems,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+How i",2,Decreases my interest,0.0075,0.08,-7.2,398,800
+ELEMENT1,How immersive the world seems,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+How i",3,Does not change my interest,0.3191,0.31,0.9,398,800
+ELEMENT1,Terry overcoming obstacles and setbacks,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",1,Increases my interest,0.9146,0.66,25.5,398,800
+ELEMENT1,Terry overcoming obstacles and setbacks,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",2,Decreases my interest,0.0025,0.06,-5.7,398,800
+ELEMENT1,Terry overcoming obstacles and setbacks,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",3,Does not change my interest,0.0829,0.28,-19.7,398,800
+ELEMENT1,Terry's emotional journey/character arc,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",1,Increases my interest,0.4849,0.64,-15.5,398,800
+ELEMENT1,Terry's emotional journey/character arc,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",2,Decreases my interest,0.0075,0.09,-8.2,398,800
+ELEMENT1,Terry's emotional journey/character arc,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+Terry",3,Does not change my interest,0.5075,0.28,22.8,398,800
+ELEMENT1,The King of Fighters tournament,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The K",1,Increases my interest,0.8819,0.6,28.2,398,800
+ELEMENT1,The King of Fighters tournament,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The K",2,Decreases my interest,0.0075,0.09,-8.2,398,800
+ELEMENT1,The King of Fighters tournament,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The K",3,Does not change my interest,0.1106,0.3,-18.9,398,800
+ELEMENT1,The Southtown setting,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The S",1,Increases my interest,0.7613,0.52,24.1,398,800
+ELEMENT1,The Southtown setting,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The S",2,Decreases my interest,0.1332,0.07,6.3,398,800
+ELEMENT1,The Southtown setting,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The S",3,Does not change my interest,0.1055,0.41,-30.4,398,800
+ELEMENT1,The balance of serious and lighter moments,"After you have read the concept,  please select how each of the following elements affect your interest in see",1,Increases my interest,0.2387,0.6,-36.1,398,800
+ELEMENT1,The balance of serious and lighter moments,"After you have read the concept,  please select how each of the following elements affect your interest in see",2,Decreases my interest,0.0402,0.07,-3.0,398,800
+ELEMENT1,The balance of serious and lighter moments,"After you have read the concept,  please select how each of the following elements affect your interest in see",3,Does not change my interest,0.7211,0.33,39.1,398,800
+ELEMENT1,The connection to the Fatal Fury/King of Fighters source material,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The c",1,Increases my interest,0.5276,0.53,-0.2,398,800
+ELEMENT1,The connection to the Fatal Fury/King of Fighters source material,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The c",2,Decreases my interest,0.0025,0.09,-8.7,398,800
+ELEMENT1,The connection to the Fatal Fury/King of Fighters source material,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The c",3,Does not change my interest,0.4698,0.38,9.0,398,800
+ELEMENT1,The fighting/action sequences,"After you have read the concept, please select how each of the following elements affect your interest in seei",1,Increases my interest,0.9648,0.71,25.5,398,800
+ELEMENT1,The fighting/action sequences,"After you have read the concept, please select how each of the following elements affect your interest in seei",2,Decreases my interest,0.0126,0.06,-4.7,398,800
+ELEMENT1,The fighting/action sequences,"After you have read the concept, please select how each of the following elements affect your interest in seei",3,Does not change my interest,0.0226,0.23,-20.7,398,800
+ELEMENT1,The high-stakes danger and intensity,"After you have read the concept,  please select how each of the following elements affect your interest in see",1,Increases my interest,0.7889,0.68,10.9,398,800
+ELEMENT1,The high-stakes danger and intensity,"After you have read the concept,  please select how each of the following elements affect your interest in see",2,Decreases my interest,0.0176,0.06,-4.2,398,800
+ELEMENT1,The high-stakes danger and intensity,"After you have read the concept,  please select how each of the following elements affect your interest in see",3,Does not change my interest,0.1935,0.25,-5.7,398,800
+ELEMENT1,The martial arts elements,"After you have read the concept, please select how each of the following elements affect your interest in seei",1,Increases my interest,0.9724,0.66,31.2,398,800
+ELEMENT1,The martial arts elements,"After you have read the concept, please select how each of the following elements affect your interest in seei",2,Decreases my interest,0.005,0.08,-7.5,398,800
+ELEMENT1,The martial arts elements,"After you have read the concept, please select how each of the following elements affect your interest in seei",3,Does not change my interest,0.0226,0.26,-23.7,398,800
+ELEMENT1,The potential for this to become a larger franchise/universe,"After you have read the concept, please select how each of the following elements affect your interest in seei",1,Increases my interest,0.1709,0.52,-34.9,398,800
+ELEMENT1,The potential for this to become a larger franchise/universe,"After you have read the concept, please select how each of the following elements affect your interest in seei",2,Decreases my interest,0.2085,0.09,11.9,398,800
+ELEMENT1,The potential for this to become a larger franchise/universe,"After you have read the concept, please select how each of the following elements affect your interest in seei",3,Does not change my interest,0.6206,0.39,23.1,398,800
+ELEMENT1,The relationship between Terry and Andy,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The r",1,Increases my interest,0.8693,0.6,26.9,398,800
+ELEMENT1,The relationship between Terry and Andy,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The r",3,Does not change my interest,0.1307,0.33,-19.9,398,800
+ELEMENT1,The supporting characters,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The s",1,Increases my interest,0.1884,0.52,-33.2,398,800
+ELEMENT1,The supporting characters,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The s",2,Decreases my interest,0.0126,0.07,-5.7,398,800
+ELEMENT1,The supporting characters,"Please select how each of the following elements affect your interest in seeing this film in a theater.
+
+The s",3,Does not change my interest,0.799,0.41,38.9,398,800
+ELEMENT1,"The themes of family, brotherhood, and loyalty","After you have read the concept, , please select how each of the following elements affect your interest in se",1,Increases my interest,0.7111,0.64,7.1,398,800
+ELEMENT1,"The themes of family, brotherhood, and loyalty","After you have read the concept, , please select how each of the following elements affect your interest in se",2,Decreases my interest,0.0126,0.07,-5.7,398,800
+ELEMENT1,"The themes of family, brotherhood, and loyalty","After you have read the concept, , please select how each of the following elements affect your interest in se",3,Does not change my interest,0.2764,0.29,-1.4,398,800
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",1,I wanted there to be more action/fighting,0.3492,0.19,15.9,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",2,I wanted to understand Terry’s motivations better,0.0402,0.2,-16.0,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",3,I wanted to understand Terry’s emotional journey better,0.0427,0.25,-20.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",4,I wanted to understand the stakes better,0.0101,0.17,-16.0,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",5,I wanted more focus on the relationship between Terry and Andy,0.1332,0.24,-10.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",6,I wanted more focus on Geese Howard as the villain,0.0025,0.19,-18.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",7,I wanted to learn more about the world of Southtown,0.0327,0.29,-25.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",8,I wanted more focus on the King of Fighters tournament,0.0628,0.23,-16.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",9,I wanted there to be higher stakes,0.0075,0.17,-16.2,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",10,I wanted the story to feel more grounded and realistic,0.603,0.22,38.3,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",11,I wanted the story to feel more epic and larger-than-life,0.0628,0.19,-12.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",12,"I wanted a simpler, easier-to-follow story",0.4196,0.14,28.0,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",13,I wanted a more complex story,0.0528,0.23,-17.7,398,624
+ELEMENT2,,"Thinking about what would make you most interested in seeing this movie, which of the following statements bes",14,I wanted it feel more authentic to the source material,0.1206,0.15,-2.9,398,624
+FRESHNSS,,"Based on the concept you just read, Which of the following best describes this idea?
+[SINGLE SELECT]",2,Feels somewhat fresh with familiar elements,0.0427,0.39,-34.7,398,800
+FRESHNSS,,"Based on the concept you just read, Which of the following best describes this idea?
+[SINGLE SELECT]",3,Feels familiar but in a good way,0.902,0.26,64.2,398,800
+FRESHNSS,,"Based on the concept you just read, Which of the following best describes this idea?
+[SINGLE SELECT]",4,Feels too similar to other movies I’ve seen,0.0553,0.13,-7.5,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",1,Martial arts movie,0.897,0.59,30.7,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",2,Action thriller,0.2513,0.29,-3.9,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",3,Tournament movie,0.3467,0.19,15.7,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",4,Revenge story,0.9296,0.36,57.0,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",5,Origin story,0.0151,0.12,-10.5,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",6,Crime/gangster movie,0.0251,0.15,-12.5,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",8,Anime brought to life,0.0327,0.17,-13.7,398,800
+GENREFIT,,"You will now read the Concept. Based on the concept you just read, which of the following best describe the ty",9,Video game adaptation,0.5528,0.38,17.3,398,800
+GFAN1,Action,How do you feel about the Action genre of movies/TV series?,1,One of my favorites,0.8417,0.66,18.2,398,800
+GFAN1,Action,How do you feel about the Action genre of movies/TV series?,2,"I like, but not a favorite",0.1508,0.34,-18.9,398,800
+GFAN1,Action,How do you feel about the Action genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.0075,0.0,0.8,398,800
+GFAN1,Animé,How do you feel about the Anime genre of movies/TV series?,1,One of my favorites,0.5126,0.29,22.3,398,800
+GFAN1,Animé,How do you feel about the Anime genre of movies/TV series?,2,"I like, but not a favorite",0.3467,0.4,-5.3,398,800
+GFAN1,Animé,How do you feel about the Anime genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.093,0.3,-20.7,398,800
+GFAN1,Animé,How do you feel about the Anime genre of movies/TV series?,4,I never see these,0.0477,0.0,4.8,398,800
+GFAN1,Comedy,How do you feel about the Comedy genre of movies/TV series?,1,One of my favorites,0.0678,0.61,-54.2,398,800
+GFAN1,Comedy,How do you feel about the Comedy genre of movies/TV series?,2,"I like, but not a favorite",0.505,0.35,15.5,398,800
+GFAN1,Comedy,How do you feel about the Comedy genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.402,0.04,36.2,398,800
+GFAN1,Comedy,How do you feel about the Comedy genre of movies/TV series?,4,I never see these,0.0251,0.0,2.5,398,800
+GFAN1,Horror,How do you feel about the Horror genre of movies/TV series?,1,One of my favorites,0.0025,0.46,-45.7,398,800
+GFAN1,Horror,How do you feel about the Horror genre of movies/TV series?,2,"I like, but not a favorite",0.1106,0.31,-19.9,398,800
+GFAN1,Horror,How do you feel about the Horror genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.6558,0.15,50.6,398,800
+GFAN1,Horror,How do you feel about the Horror genre of movies/TV series?,4,I never see these,0.2312,0.08,15.1,398,800
+GFAN1,Martial Arts,How do you feel about the Martial Arts genre of movies/TV series?,1,One of my favorites,0.9246,0.2,72.5,398,800
+GFAN1,Martial Arts,How do you feel about the Martial Arts genre of movies/TV series?,2,"I like, but not a favorite",0.0729,0.49,-41.7,398,800
+GFAN1,Martial Arts,How do you feel about the Martial Arts genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.0025,0.26,-25.7,398,800
+GFAN1,Science Fiction,How do you feel about the Science Fiction genre of movies/TV series?,1,One of my favorites,0.1106,0.55,-43.9,398,800
+GFAN1,Science Fiction,How do you feel about the Science Fiction genre of movies/TV series?,2,"I like, but not a favorite",0.598,0.35,24.8,398,800
+GFAN1,Science Fiction,How do you feel about the Science Fiction genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.2915,0.09,20.1,398,800
+GFAN1,Superhero,How do you feel about the Superhero genre of movies/TV series?,1,One of my favorites,0.1633,0.51,-34.7,398,800
+GFAN1,Superhero,How do you feel about the Superhero genre of movies/TV series?,2,"I like, but not a favorite",0.3442,0.38,-3.6,398,800
+GFAN1,Superhero,How do you feel about the Superhero genre of movies/TV series?,3,"Don’t really like, but sometimes watch",0.3643,0.09,27.4,398,800
+GFAN1,Superhero,How do you feel about the Superhero genre of movies/TV series?,4,I never see these,0.1281,0.02,10.8,398,800
+GFAN1,Suspense/Thriller,How do you feel about the Suspense/Thriller genres of movies/TV series?,1,One of my favorites,0.0302,0.58,-55.0,398,800
+GFAN1,Suspense/Thriller,How do you feel about the Suspense/Thriller genres of movies/TV series?,2,"I like, but not a favorite",0.6709,0.36,31.1,398,800
+GFAN1,Suspense/Thriller,How do you feel about the Suspense/Thriller genres of movies/TV series?,3,"Don’t really like, but sometimes watch",0.299,0.04,25.9,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",1,"Cloud (PlayStation Now, Google Stadia)",0.0075,0.13,-12.2,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",2,"PC (Steam, GOG Galaxy)",0.5754,0.43,14.5,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",3,"Mobile (Android, iOS)",0.0628,0.76,-69.7,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",4,"Console (Xbox, Nintendo Switch)",0.902,0.71,19.2,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",5,"Streaming (Twitch, YouTube Gaming)",0.0251,0.18,-15.5,398,800
+PLATFORM,,"Which of the following gaming platforms, if any, do you currently use to play video games? Please select all t",99,None of the above,0.0126,0.01,0.3,398,800
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",1,Very conservative,0.0178,0.1,-8.2,338,668
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",2,Somewhat conservative,0.1124,0.12,-0.8,338,668
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",3,Moderate,0.5562,0.34,21.6,338,668
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",4,Somewhat liberal,0.1982,0.18,1.8,338,668
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",5,Very liberal,0.0858,0.24,-15.4,338,668
+POLORIENT,,"In terms of your political orientation would you say you are….?
+[SINGLE SELECT]",6,Prefer not to answer,0.0296,0.03,-0.0,338,668
+POSTINT,,"You will now read the Concept. Based on the concept you just read, how interested would you be in seeing this ",1,Definitely interested,0.0653,0.44,-37.5,398,800
+POSTINT,,"You will now read the Concept. Based on the concept you just read, how interested would you be in seeing this ",2,Probably interested,0.8266,0.4,42.7,398,800
+POSTINT,,"You will now read the Concept. Based on the concept you just read, how interested would you be in seeing this ",3,Probably not interested,0.103,0.12,-1.7,398,800
+POSTINT,,"You will now read the Concept. Based on the concept you just read, how interested would you be in seeing this ",4,Definitely not interested,0.005,0.04,-3.5,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",1,Spouse or significant other,0.2236,0.27,-4.6,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",2,A friend/friends,0.603,0.47,13.3,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",3,"Adult family members (siblings, cousins, parents)",0.1206,0.19,-6.9,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",4,By myself,0.3492,0.14,20.9,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",5,Anyone in my family,0.1005,0.18,-7.9,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",6,Would not see in a theater,0.0402,0.13,-9.0,398,800
+SEEWITH,,"Who would you see this movie with, in a theater?
+[MULTI-SELECT]",7,Other,0.0025,0.01,-0.7,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,1,Facebook,0.1985,0.57,-37.2,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,2,YouTube,0.7513,0.79,-3.9,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,3,Instagram,0.2513,0.6,-34.9,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,4,X (formerly Twitter),0.2688,0.34,-7.1,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,5,Snapchat,0.0151,0.22,-20.5,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,6,Pinterest,0.0201,0.19,-17.0,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,7,Tumblr,0.0302,0.05,-2.0,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,8,Reddit,0.4447,0.37,7.5,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,9,TikTok,0.2613,0.45,-18.9,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,10,Letterboxd,0.0804,0.03,5.0,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,13,Discord,0.495,0.27,22.5,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,14,Twitch,0.191,0.24,-4.9,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,15,Steam,0.0804,0.17,-9.0,398,800
+SOCIAL,,Which of the following social media sites/apps do you use most to discover new content or fan communities? Ple,99,None of the above,0.0075,0.02,-1.2,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",1,Action-packed,0.8317,0.65,18.2,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",4,Edgy,0.1834,0.21,-2.7,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",5,Emotionally engaging,0.1357,0.24,-10.4,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",6,Engaging heroes,0.1281,0.33,-20.2,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",7,Entertaining,0.2739,0.45,-17.6,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",8,Epic,0.0101,0.2,-19.0,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",10,Great battle/fighting sequences,0.6432,0.55,9.3,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",11,Good villains,0.3643,0.27,9.4,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",12,Great storytelling,0.0101,0.33,-32.0,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",13,Has good messages/underlying themes,0.0678,0.19,-12.2,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",14,High energy,0.103,0.44,-33.7,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",15,High quality,0.0025,0.21,-20.7,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",17,Unpredictable,0.005,0.11,-10.5,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",18,"Complex, in a good way",0.0201,0.18,-16.0,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",19,Good world-building,0.0251,0.17,-14.5,398,800
+STORYDES,,"You will now read the Concept. Now that you have read  a description of the upcoming Fatal Fury movie, which o",20,Feels authentic to the source material,0.1985,0.21,-1.2,398,800
+URG1,,"Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most l",1,"Right away, on opening weekend",0.1281,0.24,-11.2,398,800
+URG1,,"Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most l",2,"Definitely in a theater, but not necessarily on opening weekend",0.5829,0.46,12.3,398,800
+URG1,,"Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most l",3,I’ll wait to watch it at home,0.2814,0.2,8.1,398,800
+URG1,,"Considering your level of urgency in wanting to see this movie in a theater, when do you think you will most l",4,I probably won’t see it,0.0075,0.09,-8.2,398,800
+VGFRAN1,Alpha Mission,Which best describes your feelings about the Alpha Mission gaming franchises?,2,I know a little about this,0.0553,0.07,-1.5,398,800
+VGFRAN1,Alpha Mission,Which best describes your feelings about the Alpha Mission gaming franchises?,3,I have heard of this but don’t know it,0.1508,0.2,-4.9,398,800
+VGFRAN1,Alpha Mission,Which best describes your feelings about the Alpha Mission gaming franchises?,4,I have never heard of this,0.794,0.7,9.4,398,800
+VGFRAN1,Fatal Fury,Which best describes your feelings about the Fatal Fury gaming franchises?,1,I know a lot about this,0.3668,0.14,22.7,398,800
+VGFRAN1,Fatal Fury,Which best describes your feelings about the Fatal Fury gaming franchises?,2,I know a little about this,0.4045,0.21,19.5,398,800
+VGFRAN1,Fatal Fury,Which best describes your feelings about the Fatal Fury gaming franchises?,3,I have heard of this but don’t know it,0.2035,0.27,-6.6,398,800
+VGFRAN1,Fatal Fury,Which best describes your feelings about the Fatal Fury gaming franchises?,4,I have never heard of this,0.0251,0.38,-35.5,398,800
+VGFRAN1,Metal Slug,Which best describes your feelings about the Metal Slug gaming franchises?,1,I know a lot about this,0.1633,0.13,3.3,398,800
+VGFRAN1,Metal Slug,Which best describes your feelings about the Metal Slug gaming franchises?,2,I know a little about this,0.407,0.15,25.7,398,800
+VGFRAN1,Metal Slug,Which best describes your feelings about the Metal Slug gaming franchises?,3,I have heard of this but don’t know it,0.3141,0.19,12.4,398,800
+VGFRAN1,Metal Slug,Which best describes your feelings about the Metal Slug gaming franchises?,4,I have never heard of this,0.1156,0.53,-41.4,398,800
+VGFRAN1,Mortal Kombat,Which best describes your feelings about the Mortal Kombat gaming franchises?,1,I know a lot about this,0.8894,0.65,23.9,398,800
+VGFRAN1,Mortal Kombat,Which best describes your feelings about the Mortal Kombat gaming franchises?,2,I know a little about this,0.108,0.28,-17.2,398,800
+VGFRAN1,Mortal Kombat,Which best describes your feelings about the Mortal Kombat gaming franchises?,3,I have heard of this but don’t know it,0.0025,0.06,-5.7,398,800
+VGFRAN1,Samurai Shodown,Which best describes your feelings about the Samurai Shodown gaming franchises?,1,I know a lot about this,0.2563,0.09,16.6,398,800
+VGFRAN1,Samurai Shodown,Which best describes your feelings about the Samurai Shodown gaming franchises?,2,I know a little about this,0.2211,0.16,6.1,398,800
+VGFRAN1,Samurai Shodown,Which best describes your feelings about the Samurai Shodown gaming franchises?,3,I have heard of this but don’t know it,0.3543,0.27,8.4,398,800
+VGFRAN1,Samurai Shodown,Which best describes your feelings about the Samurai Shodown gaming franchises?,4,I have never heard of this,0.1683,0.48,-31.2,398,800
+VGFRAN1,Street Fighter,Which best describes your feelings about the Street Fighter gaming franchises?,1,I know a lot about this,0.8442,0.54,30.4,398,800
+VGFRAN1,Street Fighter,Which best describes your feelings about the Street Fighter gaming franchises?,2,I know a little about this,0.1432,0.33,-18.7,398,800
+VGFRAN1,Street Fighter,Which best describes your feelings about the Street Fighter gaming franchises?,3,I have heard of this but don’t know it,0.0126,0.09,-7.7,398,800
+VGFRAN1,Super Smash Bros.,Which best describes your feelings about the Super Smash Bros. gaming franchises?,1,I know a lot about this,0.7864,0.5,28.6,398,800
+VGFRAN1,Super Smash Bros.,Which best describes your feelings about the Super Smash Bros. gaming franchises?,2,I know a little about this,0.1709,0.27,-9.9,398,800
+VGFRAN1,Super Smash Bros.,Which best describes your feelings about the Super Smash Bros. gaming franchises?,3,I have heard of this but don’t know it,0.0427,0.13,-8.7,398,800
+VGFRAN1,Tekken,Which best describes your feelings about the Tekken gaming franchises?,1,I know a lot about this,0.6784,0.35,32.8,398,800
+VGFRAN1,Tekken,Which best describes your feelings about the Tekken gaming franchises?,2,I know a little about this,0.2513,0.28,-2.9,398,800
+VGFRAN1,Tekken,Which best describes your feelings about the Tekken gaming franchises?,3,I have heard of this but don’t know it,0.0653,0.19,-12.5,398,800
+VGFRAN1,Tekken,Which best describes your feelings about the Tekken gaming franchises?,4,I have never heard of this,0.005,0.18,-17.5,398,800
+VGFRAN1,The Art of Fighting,Which best describes your feelings about The Art of Fighting gaming franchises?,1,I know a lot about this,0.2111,0.07,14.1,398,800
+VGFRAN1,The Art of Fighting,Which best describes your feelings about The Art of Fighting gaming franchises?,2,I know a little about this,0.2136,0.14,7.4,398,800
+VGFRAN1,The Art of Fighting,Which best describes your feelings about The Art of Fighting gaming franchises?,3,I have heard of this but don’t know it,0.3869,0.22,16.7,398,800
+VGFRAN1,The Art of Fighting,Which best describes your feelings about The Art of Fighting gaming franchises?,4,I have never heard of this,0.1884,0.57,-38.2,398,800
+VGFRAN1,The King of Fighters,Which best describes your feelings about The King of Fighters gaming franchises?,1,I know a lot about this,0.3945,0.12,27.4,398,800
+VGFRAN1,The King of Fighters,Which best describes your feelings about The King of Fighters gaming franchises?,2,I know a little about this,0.3467,0.16,18.7,398,800
+VGFRAN1,The King of Fighters,Which best describes your feelings about The King of Fighters gaming franchises?,3,I have heard of this but don’t know it,0.2487,0.2,4.9,398,800
+VGFRAN1,The King of Fighters,Which best describes your feelings about The King of Fighters gaming franchises?,4,I have never heard of this,0.0101,0.52,-51.0,398,800
+VGFRAN1,Wanoo-Bagoo,Which best describes your feelings about the Wanoo-Bagoo gaming franchises?,4,I have never heard of this,1.0,0.82,18.0,398,800
+VGFRAN2,Alpha Mission,Now we want to come back to some of the video game franchises you said you have at least heard of. For Alpha M,2,I am somewhat a fan,0.0176,0.42,-40.2,398,800
+VGFRAN2,Alpha Mission,Now we want to come back to some of the video game franchises you said you have at least heard of. For Alpha M,3,I would not consider myself a fan at all,0.9824,0.5,48.2,398,800
+VGFRAN2,Fatal Fury,Now we want to come back to some of the video game franchises you said you have at least heard of. For Fatal F,1,I am very much a fan,0.3668,0.2,16.7,398,495
+VGFRAN2,Fatal Fury,Now we want to come back to some of the video game franchises you said you have at least heard of. For Fatal F,2,I am somewhat a fan,0.4347,0.37,6.5,398,495
+VGFRAN2,Fatal Fury,Now we want to come back to some of the video game franchises you said you have at least heard of. For Fatal F,3,I would not consider myself a fan at all,0.1985,0.43,-23.2,398,495
+VGFRAN2,Metal Slug,Now we want to come back to some of the video game franchises you said you have at least heard of. For Metal S,1,I am very much a fan,0.108,0.21,-10.2,398,800
+VGFRAN2,Metal Slug,Now we want to come back to some of the video game franchises you said you have at least heard of. For Metal S,2,I am somewhat a fan,0.4322,0.4,3.2,398,800
+VGFRAN2,Metal Slug,Now we want to come back to some of the video game franchises you said you have at least heard of. For Metal S,3,I would not consider myself a fan at all,0.4598,0.38,8.0,398,800
+VGFRAN2,Mortal Kombat,Now we want to come back to some of the video game franchises you said you have at least heard of. For Mortal ,1,I am very much a fan,0.4824,0.59,-10.8,398,800
+VGFRAN2,Mortal Kombat,Now we want to come back to some of the video game franchises you said you have at least heard of. For Mortal ,2,I am somewhat a fan,0.3618,0.28,8.2,398,800
+VGFRAN2,Mortal Kombat,Now we want to come back to some of the video game franchises you said you have at least heard of. For Mortal ,3,I would not consider myself a fan at all,0.1558,0.13,2.6,398,800
+VGFRAN2,Samurai Shodown,Now we want to come back to some of the video game franchises you said you have at least heard of. For Samurai,1,I am very much a fan,0.2312,0.13,10.1,398,800
+VGFRAN2,Samurai Shodown,Now we want to come back to some of the video game franchises you said you have at least heard of. For Samurai,2,I am somewhat a fan,0.2538,0.42,-16.6,398,800
+VGFRAN2,Samurai Shodown,Now we want to come back to some of the video game franchises you said you have at least heard of. For Samurai,3,I would not consider myself a fan at all,0.5151,0.45,6.5,398,800
+VGFRAN2,Street Fighter,Now we want to come back to some of the video game franchises you said you have at least heard of. For Street ,1,I am very much a fan,0.7136,0.49,22.4,398,800
+VGFRAN2,Street Fighter,Now we want to come back to some of the video game franchises you said you have at least heard of. For Street ,2,I am somewhat a fan,0.2638,0.35,-8.6,398,800
+VGFRAN2,Street Fighter,Now we want to come back to some of the video game franchises you said you have at least heard of. For Street ,3,I would not consider myself a fan at all,0.0226,0.16,-13.7,398,800
+VGFRAN2,Super Smash Bros.,Now we want to come back to some of the video game franchises you said you have at least heard of. Super Smash,1,I am very much a fan,0.4246,0.49,-6.5,398,800
+VGFRAN2,Super Smash Bros.,Now we want to come back to some of the video game franchises you said you have at least heard of. Super Smash,2,I am somewhat a fan,0.299,0.32,-2.1,398,800
+VGFRAN2,Super Smash Bros.,Now we want to come back to some of the video game franchises you said you have at least heard of. Super Smash,3,I would not consider myself a fan at all,0.2764,0.19,8.6,398,800
+VGFRAN2,Tekken,"Now we want to come back to some of the video game franchises you said you have at least heard of. For Tekken,",1,I am very much a fan,0.5955,0.39,20.5,398,800
+VGFRAN2,Tekken,"Now we want to come back to some of the video game franchises you said you have at least heard of. For Tekken,",2,I am somewhat a fan,0.304,0.37,-6.6,398,800
+VGFRAN2,Tekken,"Now we want to come back to some of the video game franchises you said you have at least heard of. For Tekken,",3,I would not consider myself a fan at all,0.1005,0.25,-14.9,398,800
+VGFRAN2,The Art of Fighting,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Art,1,I am very much a fan,0.1558,0.16,-0.4,398,341
+VGFRAN2,The Art of Fighting,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Art,2,I am somewhat a fan,0.2688,0.4,-13.1,398,341
+VGFRAN2,The Art of Fighting,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Art,3,I would not consider myself a fan at all,0.5754,0.44,13.5,398,341
+VGFRAN2,The King of Fighters,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Kin,1,I am very much a fan,0.3819,0.19,19.2,398,381
+VGFRAN2,The King of Fighters,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Kin,2,I am somewhat a fan,0.3744,0.45,-7.6,398,381
+VGFRAN2,The King of Fighters,Now we want to come back to some of the video game franchises you said you have at least heard of. For The Kin,3,I would not consider myself a fan at all,0.2437,0.36,-11.6,398,381
+VGFRAN3,Alpha Mission,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,1.0,0.38,62.0,398,800
+VGFRAN3,Fatal Fury,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.3015,0.2,10.2,398,800
+VGFRAN3,Fatal Fury,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.6382,0.35,28.8,398,800
+VGFRAN3,Fatal Fury,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.0528,0.29,-23.7,398,800
+VGFRAN3,Fatal Fury,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.0075,0.16,-15.2,398,800
+VGFRAN3,Metal Slug,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.0176,0.16,-14.2,398,800
+VGFRAN3,Metal Slug,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.191,0.31,-11.9,398,800
+VGFRAN3,Metal Slug,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.5879,0.34,24.8,398,800
+VGFRAN3,Metal Slug,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.2035,0.18,2.4,398,800
+VGFRAN3,Mortal Kombat,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.3668,0.64,-27.3,398,800
+VGFRAN3,Mortal Kombat,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.2915,0.24,5.1,398,800
+VGFRAN3,Mortal Kombat,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.1734,0.07,10.3,398,800
+VGFRAN3,Mortal Kombat,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.1683,0.05,11.8,398,800
+VGFRAN3,Samurai Shodown,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.1156,0.18,-6.4,398,800
+VGFRAN3,Samurai Shodown,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.4196,0.33,9.0,398,800
+VGFRAN3,Samurai Shodown,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.3568,0.32,3.7,398,800
+VGFRAN3,Samurai Shodown,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.108,0.17,-6.2,398,800
+VGFRAN3,Street Fighter,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.3241,0.56,-23.6,398,800
+VGFRAN3,Street Fighter,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.5302,0.28,25.0,398,800
+VGFRAN3,Street Fighter,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.1156,0.1,1.6,398,800
+VGFRAN3,Street Fighter,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.0302,0.06,-3.0,398,800
+VGFRAN3,Super Smash Bros.,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.2437,0.5,-25.6,398,800
+VGFRAN3,Super Smash Bros.,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.1181,0.3,-18.2,398,800
+VGFRAN3,Super Smash Bros.,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.1005,0.14,-3.9,398,800
+VGFRAN3,Super Smash Bros.,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.5377,0.06,47.8,398,800
+VGFRAN3,Tekken,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.3141,0.38,-6.6,398,800
+VGFRAN3,Tekken,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.4196,0.3,12.0,398,800
+VGFRAN3,Tekken,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.2236,0.21,1.4,398,800
+VGFRAN3,Tekken,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.0427,0.1,-5.7,398,800
+VGFRAN3,The Art of Fighting,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.0101,0.14,-13.0,398,800
+VGFRAN3,The Art of Fighting,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.2789,0.35,-7.1,398,800
+VGFRAN3,The Art of Fighting,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.6156,0.34,27.6,398,800
+VGFRAN3,The Art of Fighting,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.0955,0.18,-8.5,398,800
+VGFRAN3,The King of Fighters,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",1,Definitely interested,0.2111,0.19,2.1,398,800
+VGFRAN3,The King of Fighters,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",2,Probably interested,0.5528,0.33,22.3,398,800
+VGFRAN3,The King of Fighters,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",3,Probably not interested,0.2236,0.31,-8.6,398,800
+VGFRAN3,The King of Fighters,"Based on anything that you know about these video game franchises, or even just the names, how interested woul",4,Definitely not interested,0.0126,0.17,-15.7,398,800
+VIABLE1,,"Based on the concept you just read, how interested would you be in seeing additional stories set in the world ",1,Definitely interested,0.0829,0.44,-35.7,398,800
+VIABLE1,,"Based on the concept you just read, how interested would you be in seeing additional stories set in the world ",2,Probably interested,0.7638,0.38,38.4,398,800
+VIABLE1,,"Based on the concept you just read, how interested would you be in seeing additional stories set in the world ",3,Probably not interested,0.1508,0.13,2.1,398,800
+VIABLE1,,"Based on the concept you just read, how interested would you be in seeing additional stories set in the world ",4,Definitely not interested,0.0025,0.05,-4.7,398,800
+VIABLE2,,"Based on the concept you just read, how interested would you be in seeing more stories centered around the cha",1,Definitely interested,0.0854,0.46,-37.5,398,800
+VIABLE2,,"Based on the concept you just read, how interested would you be in seeing more stories centered around the cha",2,Probably interested,0.7965,0.36,43.6,398,800
+VIABLE2,,"Based on the concept you just read, how interested would you be in seeing more stories centered around the cha",3,Probably not interested,0.1156,0.13,-1.4,398,800
+VIABLE2,,"Based on the concept you just read, how interested would you be in seeing more stories centered around the cha",4,Definitely not interested,0.0025,0.05,-4.7,398,800

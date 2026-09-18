@@ -1,0 +1,34 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "mart_openend_verbatim",
+  description: "Open-end responses, exportable as-is. Net coding is deliberately NOT done here: see RUNBOOK section 7.",
+  uniqueKey: ["study_id","respondent_id","run_id","question_key"],
+  bigquery: { clusterBy: ["study_id","meta"] },
+  tags: ["marts"]
+}
+
+js { const { BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+-- There is no clustering step and no model inventing a taxonomy. When
+-- net coding is switched on it will be: a human-authored fixed code
+-- frame, one bounded grading call per verbatim returning a multi-hot
+-- over that frame, cached on hash(verbatim, frame_version, model) so a
+-- re-run is a cache read rather than a fresh generation.
+
+SELECT
+  s.study_id, s.format_id, s.respondent_id, s.run_id, s.cell_label,
+  q.question_key, s.meta, s.question_text, q.item_text,
+  s.qual_raw AS verbatim,
+  LENGTH(s.qual_raw) AS verbatim_chars,
+  TO_HEX(MD5(IFNULL(s.qual_raw, ''))) AS verbatim_hash
+FROM ${ref("stg_answer")} AS s
+JOIN ${ref("dim_question")} AS q
+  ON q.study_id = s.study_id
+ AND q.question_key = TO_HEX(MD5(CONCAT(IFNULL(s.meta,''),'||',s.question_text)))
+WHERE s.study_id IN (${BUILD_QUEUE})
+  AND s.qual_raw IS NOT NULL AND TRIM(s.qual_raw) != ''

@@ -1,0 +1,72 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "dim_question",
+  description: "Question identity = MD5(meta || item_text). tabulation_kind and response_mode come from Q{n}_type via type_code_map, not from a heuristic.",
+  uniqueKey: ["study_id","question_key"],
+  bigquery: { clusterBy: ["study_id","meta"] },
+  tags: ["curated"]
+}
+
+js { const { CONFIG, BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+-- Q{n} is positional within a file and is never identity: the same Q11
+-- is a different question in a different file. The old repo's
+-- "question_text LIKE 'Approximately how often%'" rule is gone; the
+-- file states the type explicitly.
+
+WITH agg AS (
+  SELECT
+    a.study_id,
+    a.format_id,
+    a.meta,
+    a.question_text,
+    TO_HEX(MD5(CONCAT(IFNULL(a.meta,''),'||',a.question_text))) AS question_key,
+    ANY_VALUE(a.type_code)       AS type_code,
+    ANY_VALUE(a.tabulation_kind) AS tabulation_kind,
+    ANY_VALUE(a.response_mode)   AS response_mode,
+    ANY_VALUE(a.value_field)     AS value_field,
+    ANY_VALUE(a.has_labels)      AS has_labels,
+    MIN(a.col_ordinal)           AS display_order,
+    COUNT(DISTINCT a.respondent_id) AS n_respondents
+  FROM ${ref("stg_answer")} AS a
+  WHERE a.study_id IN (${BUILD_QUEUE})
+  GROUP BY 1, 2, 3, 4, 5
+),
+
+-- Grid items: several question_texts sharing one meta (GFAN1 x 6 genres).
+items AS (
+  SELECT study_id, meta, COUNT(DISTINCT question_text) AS n_items
+  FROM agg GROUP BY 1, 2
+)
+
+SELECT
+  a.study_id,
+  a.format_id,
+  a.question_key,
+  a.meta,
+  a.question_text,
+  IF(i.n_items > 1, a.question_text, NULL) AS item_text,
+  i.n_items,
+  a.type_code,
+  a.tabulation_kind,
+  a.response_mode,
+  a.value_field,
+  a.has_labels,
+  a.display_order,
+  a.n_respondents,
+  IFNULL(ph.exposure_phase, 'post') AS exposure_phase,
+  ph.meta_sort,
+  IFNULL(bl.base_label, 'Total Respondents') AS base_label,
+  a.meta = r.headline_meta AS is_headline
+FROM agg AS a
+JOIN items AS i USING (study_id, meta)
+JOIN ${CONFIG}.study_registry AS r ON r.study_id = a.study_id
+LEFT JOIN ${CONFIG}.meta_phase_map AS ph
+  ON ph.format_id = a.format_id AND ph.meta = a.meta
+LEFT JOIN ${CONFIG}.base_label_map AS bl
+  ON bl.format_id = a.format_id AND bl.meta = a.meta

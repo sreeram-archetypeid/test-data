@@ -1,0 +1,104 @@
+config {
+  type: "table",
+  schema: "banner",
+  name: "mart_banner_render",
+  description: "Printable banner. One row per printed line, one array cell per printed column. Reproduces the #page / Table N / header band / stub / SIGMA layout. This replaces the ad-hoc pivot query that was run by hand outside Dataform.",
+  bigquery: { clusterBy: ["study_id"] },
+  tags: ["marts","render"]
+}
+
+js { const { CONFIG, PUBLISH_QUEUE } = require("includes/constants"); }
+
+WITH
+-- Column spine, ordered as printed. Columns below min_base drop out
+-- here so every line has the same width.
+cols AS (
+  SELECT study_id, column_id, banner_group, group_sort,
+         cell_label, cell_sort, column_label, column_sort,
+         COUNT(DISTINCT respondent_id) AS n_col,
+         MAX(IFNULL(min_base, 0)) AS min_base
+  FROM ${ref("int_cut_member")}
+  WHERE study_id IN (${PUBLISH_QUEUE}) AND is_printed
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+),
+
+col_ix AS (
+  SELECT * EXCEPT (min_base),
+         ROW_NUMBER() OVER (PARTITION BY study_id
+           ORDER BY group_sort, cell_sort, column_sort, column_label) AS col_ix
+  FROM cols WHERE n_col >= min_base
+),
+
+width AS (SELECT study_id, MAX(col_ix) AS n_cols FROM col_ix GROUP BY 1),
+
+tables AS (
+  SELECT study_id, question_key, meta, question_text, item_text, base_label,
+         DENSE_RANK() OVER (PARTITION BY study_id
+           ORDER BY display_order, question_key) AS table_no
+  FROM ${ref("dim_question")}
+  WHERE study_id IN (${PUBLISH_QUEUE}) AND tabulation_kind = 'CODED'
+),
+
+band AS (
+  SELECT t.study_id, t.table_no, k.line_sort, '' AS line_label, k.line_kind,
+         ARRAY(
+           SELECT CASE k.line_kind
+                    WHEN 'band_group'  THEN IFNULL(c.banner_group,'')
+                    WHEN 'band_cell'   THEN IFNULL(c.cell_label,'')
+                    ELSE c.column_label
+                  END
+           FROM col_ix AS c WHERE c.study_id = t.study_id ORDER BY c.col_ix
+         ) AS cells
+  FROM tables AS t
+  CROSS JOIN UNNEST([
+    STRUCT(5 AS line_sort, 'band_group'  AS line_kind),
+    STRUCT(6, 'band_cell'),
+    STRUCT(7, 'band_column')
+  ]) AS k
+),
+
+titles AS (
+  SELECT t.study_id, t.table_no, k.line_sort, k.line_label,
+         CAST(NULL AS STRING) AS line_kind, ARRAY<STRING>[] AS cells
+  FROM tables AS t
+  CROSS JOIN UNNEST([
+    STRUCT(1 AS line_sort, '#page' AS line_label),
+    STRUCT(2, CONCAT('Table ', CAST(t.table_no AS STRING))),
+    STRUCT(3, CONCAT(IFNULL(t.meta,''), '. ', t.question_text,
+                     IF(t.item_text IS NULL, '', CONCAT('  ** ', t.item_text, ' **')))),
+    STRUCT(4, CONCAT('Base: ', t.base_label))
+  ]) AS k
+),
+
+figures AS (
+  SELECT
+    t.study_id, t.table_no,
+    10 + s.stub_sort AS line_sort,
+    s.stub_label AS line_label,
+    s.stub_kind  AS line_kind,
+    ARRAY(
+      SELECT IFNULL(MAX(IF(s2.stub_kind = 'base',
+                           FORMAT('%d', s2.n_stub),
+                           FORMAT('%.2f%%', s2.pct * 100))), '')
+      FROM col_ix AS c
+      LEFT JOIN ${ref("mart_stub")} AS s2
+        ON s2.study_id = t.study_id AND s2.question_key = s.question_key
+       AND s2.stub_key = s.stub_key AND s2.column_id = c.column_id
+      WHERE c.study_id = t.study_id
+      GROUP BY c.col_ix ORDER BY c.col_ix
+    ) AS cells
+  FROM (
+    SELECT DISTINCT study_id, question_key, stub_key, stub_kind, stub_sort, stub_label
+    FROM ${ref("mart_stub")} WHERE study_id IN (${PUBLISH_QUEUE})
+  ) AS s
+  JOIN tables AS t USING (study_id, question_key)
+)
+
+SELECT study_id, table_no, line_sort, line_label, line_kind, cells,
+       (SELECT n_cols FROM width w WHERE w.study_id = x.study_id) AS n_cols
+FROM (
+  SELECT * FROM titles
+  UNION ALL SELECT * FROM band
+  UNION ALL SELECT * FROM figures
+) AS x
+ORDER BY study_id, table_no, line_sort

@@ -1,0 +1,84 @@
+config {
+  type: "incremental",
+  schema: "banner",
+  name: "stg_cast_reject",
+  description: "Every value that failed a typed parse, with its file, row, column and expected type. Nothing is allowed to disappear into a silent NULL.",
+  uniqueKey: ["study_id","source_file","row_ix","col_ordinal","expected_type"],
+  bigquery: { clusterBy: ["study_id","expected_type"] },
+  tags: ["staging","dq"]
+}
+
+js { const { BUILD_QUEUE, inQueue } = require("includes/constants"); }
+
+pre_operations {
+  ${when(incremental(), `DELETE FROM ${self()} WHERE ${inQueue(self())}`, `SELECT 1`)}
+}
+
+-- Known real example from the reference data: archetype_age_range
+-- contains '9 years old' in one ABR K9 row, alongside '8', '25-44' and
+-- '32-54'. Under a bare SAFE_CAST that row loses its age with no trace.
+
+WITH age_cells AS (
+  SELECT study_id, source_file, row_ix, col_ordinal, header, cell_value
+  FROM ${ref("stg_cell")}
+  WHERE block = 'persona' AND header = 'archetype_age_range'
+),
+
+age_bad AS (
+  SELECT study_id, source_file, row_ix, col_ordinal, header, cell_value,
+         'INT64:age' AS expected_type,
+         CASE
+           WHEN cell_value IS NULL                                   THEN 'missing'
+           WHEN NOT REGEXP_CONTAINS(cell_value, r'[0-9]')            THEN 'no_digits'
+           WHEN REGEXP_CONTAINS(cell_value, r'[A-Za-z]')             THEN 'text_in_numeric_field'
+           ELSE 'unparsed'
+         END AS reason
+  FROM age_cells
+  WHERE cell_value IS NULL
+     OR NOT REGEXP_CONTAINS(TRIM(cell_value), r'^[0-9]+$|^[0-9]+\s*-\s*[0-9]+$')
+),
+
+rating_bad AS (
+  SELECT a.study_id, a.source_file, a.row_ix, a.col_ordinal,
+         CONCAT('Q', CAST(a.q_index AS STRING), '_rating') AS header,
+         a.rating_raw AS cell_value,
+         'INT64:rating' AS expected_type,
+         'unparsed' AS reason
+  FROM ${ref("stg_answer")} AS a
+  WHERE a.value_field = 'rating'
+    AND a.rating_raw IS NOT NULL
+    AND NOT REGEXP_CONTAINS(TRIM(a.rating_raw), r'^[0-9]+$')
+),
+
+punch_bad AS (
+  SELECT a.study_id, a.source_file, a.row_ix, a.col_ordinal,
+         CONCAT('Q', CAST(a.q_index AS STRING), '_selected') AS header,
+         piece AS cell_value,
+         'INT64:punch' AS expected_type,
+         'no_leading_code' AS reason
+  FROM ${ref("stg_answer")} AS a,
+       UNNEST(SPLIT(IFNULL(a.selected_raw, ''), '|')) AS piece
+  WHERE a.value_field = 'selected'
+    AND TRIM(piece) != ''
+    AND NOT REGEXP_CONTAINS(TRIM(piece), r'^[0-9]+\s*\.')
+),
+
+unmapped_type AS (
+  SELECT a.study_id, a.source_file, a.row_ix, a.col_ordinal,
+         CONCAT('Q', CAST(a.q_index AS STRING), '_type') AS header,
+         a.type_code AS cell_value,
+         'ENUM:type_code' AS expected_type,
+         'not_in_type_code_map' AS reason
+  FROM ${ref("stg_answer")} AS a
+  WHERE a.tabulation_kind IS NULL
+)
+
+SELECT study_id, source_file, row_ix, col_ordinal, header, cell_value,
+       expected_type, reason, CURRENT_TIMESTAMP() AS detected_at
+FROM (
+  SELECT study_id, source_file, row_ix, col_ordinal, header, cell_value, expected_type, reason FROM age_bad
+  UNION ALL SELECT * FROM rating_bad
+  UNION ALL SELECT * FROM punch_bad
+  UNION ALL SELECT * FROM unmapped_type
+)
+WHERE study_id IN (${BUILD_QUEUE})

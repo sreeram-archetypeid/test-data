@@ -9,14 +9,14 @@ USING (
     STRUCT(
       'drop-001' AS study_id, 'arena_ff_v1' AS format_id,
       'Fatal Fury concept test' AS study_name,
-      'gs://archetypeid-drops/drop-001' AS gcs_prefix,
+      'gs://archetypeid-staging-surveys/drop-001' AS gcs_prefix,
       'ff_ban2' AS banner_plan_id,
       'POSTINT' AS headline_meta, [1,2] AS topbox_codes,
       'standalone_wins' AS primary_run_rule),
     STRUCT(
       'drop-002', 'arena_abr_v1',
       'Air Bud Returns concept test',
-      'gs://archetypeid-drops/drop-002',
+      'gs://archetypeid-staging-surveys/drop-002',
       'abr_ban1',
       -- headline_meta NULL: ABR has no closed-ended conversion question.
       -- mart_conversion falls back to the aat block and flags it derived.

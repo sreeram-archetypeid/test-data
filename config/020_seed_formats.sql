@@ -12,7 +12,7 @@ VALUES
   r'^archetype_', NULL,
   r'^Q(\d+)_(question|meta|type|rating_label|rating|selected|qual)$',
   'archetype_id',
-  r'-(\d+_\d+X?)___',          -- 2_1X / 2_2 / 2_3  -> replicate run
+  r'-(\d+\.\d+X?)\s',          -- 2_1X / 2_2 / 2_3  -> replicate run
   r'-FF-([GS])-',              -- two creatives: Goyer / Sheridan
   'source_file', TRUE,
   'No aat block. POSTINT is type 4, a real closed-ended answer.'),

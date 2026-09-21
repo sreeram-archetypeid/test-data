@@ -77,15 +77,21 @@ figures AS (
     s.stub_label AS line_label,
     s.stub_kind  AS line_kind,
     ARRAY(
-      SELECT IFNULL(MAX(IF(s2.stub_kind = 'base',
-                           FORMAT('%d', s2.n_stub),
-                           FORMAT('%.2f%%', s2.pct * 100))), '')
+      SELECT IFNULL(v.txt, '')
       FROM col_ix AS c
-      LEFT JOIN ${ref("mart_stub")} AS s2
-        ON s2.study_id = t.study_id AND s2.question_key = s.question_key
-       AND s2.stub_key = s.stub_key AND s2.column_id = c.column_id
+      LEFT JOIN (
+        SELECT s2.column_id,
+               IF(MAX(s2.stub_kind) = 'base',
+                  FORMAT('%d', MAX(s2.n_stub)),
+                  FORMAT('%.2f%%', MAX(s2.pct) * 100)) AS txt
+        FROM ${ref("mart_stub")} AS s2
+        WHERE s2.study_id = t.study_id
+          AND s2.question_key = s.question_key
+          AND s2.stub_key = s.stub_key
+        GROUP BY s2.column_id
+      ) AS v ON v.column_id = c.column_id
       WHERE c.study_id = t.study_id
-      GROUP BY c.col_ix ORDER BY c.col_ix
+      ORDER BY c.col_ix
     ) AS cells
   FROM (
     SELECT DISTINCT study_id, question_key, stub_key, stub_kind, stub_sort, stub_label

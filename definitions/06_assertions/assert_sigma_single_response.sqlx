@@ -6,8 +6,11 @@ config {
   tags: ["dq"]
 }
 
-SELECT study_id, question_key, column_id, SUM(pct) AS total_pct
-FROM ${ref("mart_stub")}
-WHERE stub_kind = 'option'
-GROUP BY 1, 2, 3
-HAVING ABS(SUM(pct) - 1.0) > 0.005
+SELECT s.study_id, s.meta, s.question_key, s.column_id,
+       ANY_VALUE(s.n_base) AS n_base,
+       SUM(s.pct) AS total_pct
+FROM ${ref("mart_stub")} AS s
+JOIN ${ref("dim_question")} AS q USING (study_id, question_key)
+WHERE s.stub_kind = 'option' AND q.response_mode = 'single'
+GROUP BY 1, 2, 3, 4
+HAVING ABS(SUM(s.pct) - 1.0) > 0.005

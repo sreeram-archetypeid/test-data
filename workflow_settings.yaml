@@ -11,4 +11,4 @@ vars:
   config_dataset: banner_config
   raw_dataset: banner_raw
   export_bucket: gs://archetypeid-banner-out
-  composite_depth: 3
+  composite_depth: "3"

@@ -39,7 +39,7 @@ ctx AS (
     IFNULL(REGEXP_EXTRACT(i.source_file, f.run_id_regex), 'r1') AS run_id,
     REGEXP_EXTRACT(
       IF(f.cell_source = 'group_name', g.group_name, i.source_file),
-      IFNULL(f.cell_regex, r'(?!)')
+      f.cell_regex
     ) AS cell_label
   FROM ids AS i
   JOIN grp AS g USING (study_id, source_file, row_ix)

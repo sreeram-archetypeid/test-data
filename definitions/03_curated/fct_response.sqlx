@@ -15,13 +15,22 @@ pre_operations {
 }
 
 WITH a AS (
-  SELECT s.* EXCEPT (item_text), q.question_key, q.item_text, q.n_items
+  SELECT s.* EXCEPT (item_text), q.question_key, q.item_text, q.n_items,
+         f.duplicate_item_rule
   FROM ${ref("stg_answer")} AS s
   JOIN ${ref("dim_question")} AS q
     ON q.study_id = s.study_id
    AND q.question_key = TO_HEX(MD5(CONCAT(IFNULL(s.meta,''),'||',s.question_text,'||',
                                           CAST(s.occurrence AS STRING))))
+  JOIN ${CONFIG}.study_registry AS r ON r.study_id = s.study_id
+  JOIN ${CONFIG}.format_registry AS f ON f.format_id = r.format_id
   WHERE s.study_id IN (${BUILD_QUEUE})
+    -- FF's 2.1X files are a combined-cohort export: the same respondent's
+    -- section 1 appears twice. That is one measurement exported twice, so
+    -- it collapses. ABR deliberately repeats an item to improve response
+    -- quality, so both are kept.
+    AND (IFNULL(f.duplicate_item_rule, 'keep_all') != 'first_only'
+         OR s.occurrence = 1)
 ),
 
 -- Multi-punch cells are pipe-delimited; explode keeping each punch code.

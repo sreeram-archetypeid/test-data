@@ -107,4 +107,3 @@ FROM (
   UNION ALL SELECT * FROM band
   UNION ALL SELECT * FROM figures
 ) AS x
-ORDER BY study_id, table_no, line_sort

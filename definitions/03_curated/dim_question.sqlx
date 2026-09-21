@@ -36,7 +36,14 @@ WITH agg AS (
     MIN(a.col_ordinal)           AS display_order,
     COUNT(DISTINCT a.respondent_id) AS n_respondents
   FROM ${ref("stg_answer")} AS a
+  JOIN ${CONFIG}.study_registry AS r2 ON r2.study_id = a.study_id
+  JOIN ${CONFIG}.format_registry AS f2 ON f2.format_id = r2.format_id
   WHERE a.study_id IN (${BUILD_QUEUE})
+    -- Same duplicate rule as fct_response, or this table keeps question
+    -- keys that have no responses behind them and the banner renders
+    -- empty tables for them.
+    AND (IFNULL(f2.duplicate_item_rule, 'keep_all') != 'first_only'
+         OR a.occurrence = 1)
   GROUP BY 1, 2, 3, 4, 5, 6
 ),
 

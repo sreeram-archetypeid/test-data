@@ -2,7 +2,7 @@ config {
   type: "table",
   schema: "banner",
   name: "mart_banner_render",
-  description: "Printable banner. One row per printed line, one array cell per printed column. Reproduces the #page / Table N / header band / stub / SIGMA layout. This replaces the ad-hoc pivot query that was run by hand outside Dataform.",
+  description: "Printable banner. One row per printed line, one array cell per printed column. Reproduces the #page / Table N / header band / stub / SIGMA layout. Built with joins and ARRAY_AGG rather than correlated subqueries, which BigQuery cannot de-correlate across tables.",
   bigquery: { clusterBy: ["study_id"] },
   tags: ["marts","render"]
 }
@@ -10,8 +10,8 @@ config {
 js { const { CONFIG, PUBLISH_QUEUE } = require("includes/constants"); }
 
 WITH
--- Column spine, ordered as printed. Columns below min_base drop out
--- here so every line has the same width.
+-- Column spine, ordered as printed. Columns below min_base drop out here
+-- so every line comes out the same width.
 cols AS (
   SELECT study_id, column_id, banner_group, group_sort,
          cell_label, cell_sort, column_label, column_sort,
@@ -23,43 +23,36 @@ cols AS (
 ),
 
 col_ix AS (
-  SELECT * EXCEPT (min_base),
+  SELECT study_id, column_id, banner_group, group_sort,
+         cell_label, cell_sort, column_label, column_sort, n_col,
          ROW_NUMBER() OVER (PARTITION BY study_id
            ORDER BY group_sort, cell_sort, column_sort, column_label) AS col_ix
-  FROM cols WHERE n_col >= min_base
+  FROM cols
+  WHERE n_col >= min_base
 ),
 
-width AS (SELECT study_id, MAX(c.col_ix) AS n_cols FROM col_ix AS c GROUP BY 1),
+width AS (
+  SELECT study_id, MAX(c.col_ix) AS n_cols
+  FROM col_ix AS c GROUP BY study_id
+),
 
+-- Table numbering follows questionnaire order.
 tables AS (
   SELECT study_id, question_key, meta, question_text, item_text, base_label,
          DENSE_RANK() OVER (PARTITION BY study_id
-           ORDER BY display_order, question_key) AS table_no
+           ORDER BY MIN(display_order), question_key) AS table_no
   FROM ${ref("dim_question")}
   WHERE study_id IN (${PUBLISH_QUEUE}) AND tabulation_kind = 'CODED'
+  GROUP BY study_id, question_key, meta, question_text, item_text, base_label
 ),
 
-band AS (
-  SELECT t.study_id, t.table_no, k.line_sort, '' AS line_label, k.line_kind,
-         ARRAY(
-           SELECT CASE k.line_kind
-                    WHEN 'band_group'  THEN IFNULL(c.banner_group,'')
-                    WHEN 'band_cell'   THEN IFNULL(c.cell_label,'')
-                    ELSE c.column_label
-                  END
-           FROM col_ix AS c WHERE c.study_id = t.study_id ORDER BY c.col_ix
-         ) AS cells
-  FROM tables AS t
-  CROSS JOIN UNNEST([
-    STRUCT(5 AS line_sort, 'band_group'  AS line_kind),
-    STRUCT(6, 'band_cell'),
-    STRUCT(7, 'band_column')
-  ]) AS k
-),
-
+-- ---------------------------------------------------------------
+-- Title lines: no cells.
+-- ---------------------------------------------------------------
 titles AS (
   SELECT t.study_id, t.table_no, k.line_sort, k.line_label,
-         CAST(NULL AS STRING) AS line_kind, ARRAY<STRING>[] AS cells
+         CAST(NULL AS STRING) AS line_kind,
+         ARRAY<STRING>[] AS cells
   FROM tables AS t
   CROSS JOIN UNNEST([
     STRUCT(1 AS line_sort, '#page' AS line_label),
@@ -70,40 +63,90 @@ titles AS (
   ]) AS k
 ),
 
+-- ---------------------------------------------------------------
+-- Header bands: three lines per table, one cell per column.
+-- ---------------------------------------------------------------
+band AS (
+  SELECT
+    t.study_id, t.table_no, k.line_sort,
+    '' AS line_label,
+    k.line_kind,
+    ARRAY_AGG(
+      CASE k.line_kind
+        WHEN 'band_group' THEN IFNULL(c.banner_group, '')
+        WHEN 'band_cell'  THEN IFNULL(c.cell_label, '')
+        ELSE c.column_label
+      END
+      ORDER BY c.col_ix
+    ) AS cells
+  FROM tables AS t
+  CROSS JOIN UNNEST([
+    STRUCT(5 AS line_sort, 'band_group'  AS line_kind),
+    STRUCT(6, 'band_cell'),
+    STRUCT(7, 'band_column')
+  ]) AS k
+  JOIN col_ix AS c ON c.study_id = t.study_id
+  GROUP BY t.study_id, t.table_no, k.line_sort, k.line_kind
+),
+
+-- ---------------------------------------------------------------
+-- Figure lines. The grid is built by joining every stub line to every
+-- printed column, then left-joining the actual figure. That keeps the
+-- width constant and avoids a correlated lookup.
+-- ---------------------------------------------------------------
+stub_lines AS (
+  SELECT DISTINCT study_id, question_key, stub_key, stub_kind, stub_sort, stub_label
+  FROM ${ref("mart_stub")}
+  WHERE study_id IN (${PUBLISH_QUEUE})
+),
+
+grid AS (
+  SELECT k.study_id, k.question_key, k.stub_key, k.stub_kind,
+         k.stub_sort, k.stub_label,
+         c.column_id, c.col_ix
+  FROM stub_lines AS k
+  JOIN col_ix AS c ON c.study_id = k.study_id
+),
+
+figure_cells AS (
+  SELECT
+    g.study_id, g.question_key, g.stub_key, g.stub_kind,
+    g.stub_sort, g.stub_label, g.col_ix,
+    CASE
+      WHEN s.stub_key IS NULL THEN ''
+      WHEN g.stub_kind = 'base' THEN FORMAT('%d', s.n_stub)
+      ELSE FORMAT('%.2f%%', IFNULL(s.pct, 0) * 100)
+    END AS txt
+  FROM grid AS g
+  LEFT JOIN ${ref("mart_stub")} AS s
+    ON  s.study_id    = g.study_id
+    AND s.question_key = g.question_key
+    AND s.stub_key     = g.stub_key
+    AND s.column_id    = g.column_id
+),
+
 figures AS (
   SELECT
     t.study_id, t.table_no,
-    10 + s.stub_sort AS line_sort,
-    s.stub_label AS line_label,
-    s.stub_kind  AS line_kind,
-    ARRAY(
-      SELECT IFNULL(v.txt, '')
-      FROM col_ix AS c
-      LEFT JOIN (
-        SELECT s2.column_id,
-               IF(MAX(s2.stub_kind) = 'base',
-                  FORMAT('%d', MAX(s2.n_stub)),
-                  FORMAT('%.2f%%', MAX(s2.pct) * 100)) AS txt
-        FROM ${ref("mart_stub")} AS s2
-        WHERE s2.study_id = t.study_id
-          AND s2.question_key = s.question_key
-          AND s2.stub_key = s.stub_key
-        GROUP BY s2.column_id
-      ) AS v ON v.column_id = c.column_id
-      WHERE c.study_id = t.study_id
-      ORDER BY c.col_ix
-    ) AS cells
-  FROM (
-    SELECT DISTINCT study_id, question_key, stub_key, stub_kind, stub_sort, stub_label
-    FROM ${ref("mart_stub")} WHERE study_id IN (${PUBLISH_QUEUE})
-  ) AS s
-  JOIN tables AS t USING (study_id, question_key)
-)
+    10 + f.stub_sort AS line_sort,
+    f.stub_label AS line_label,
+    f.stub_kind  AS line_kind,
+    ARRAY_AGG(f.txt ORDER BY f.col_ix) AS cells
+  FROM figure_cells AS f
+  JOIN tables AS t
+    ON t.study_id = f.study_id AND t.question_key = f.question_key
+  GROUP BY t.study_id, t.table_no, f.stub_sort, f.stub_label, f.stub_kind
+),
 
-SELECT study_id, table_no, line_sort, line_label, line_kind, cells,
-       (SELECT n_cols FROM width w WHERE w.study_id = x.study_id) AS n_cols
-FROM (
+all_lines AS (
   SELECT * FROM titles
   UNION ALL SELECT * FROM band
   UNION ALL SELECT * FROM figures
-) AS x
+)
+
+SELECT
+  l.study_id, l.table_no, l.line_sort, l.line_label, l.line_kind, l.cells,
+  w.n_cols
+FROM all_lines AS l
+JOIN width AS w ON w.study_id = l.study_id
+

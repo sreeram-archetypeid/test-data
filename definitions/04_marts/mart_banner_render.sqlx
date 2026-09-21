@@ -39,11 +39,12 @@ width AS (
 -- Table numbering follows questionnaire order.
 tables AS (
   SELECT study_id, question_key, meta, question_text, item_text, base_label,
+         occurrence,
          DENSE_RANK() OVER (PARTITION BY study_id
            ORDER BY MIN(display_order), question_key) AS table_no
   FROM ${ref("dim_question")}
   WHERE study_id IN (${PUBLISH_QUEUE}) AND tabulation_kind = 'CODED'
-  GROUP BY study_id, question_key, meta, question_text, item_text, base_label
+  GROUP BY study_id, question_key, meta, question_text, item_text, base_label, occurrence
 ),
 
 -- ---------------------------------------------------------------
@@ -58,7 +59,9 @@ titles AS (
     STRUCT(1 AS line_sort, '#page' AS line_label),
     STRUCT(2, CONCAT('Table ', CAST(t.table_no AS STRING))),
     STRUCT(3, CONCAT(IFNULL(t.meta,''), '. ', t.question_text,
-                     IF(t.item_text IS NULL, '', CONCAT('  ** ', t.item_text, ' **')))),
+                     IF(t.item_text IS NULL, '', CONCAT('  ** ', t.item_text, ' **')),
+                     IF(t.occurrence > 1,
+                        CONCAT('  ** Ask ', CAST(t.occurrence AS STRING), ' **'), ''))),
     STRUCT(4, CONCAT('Base: ', t.base_label))
   ]) AS k
 ),

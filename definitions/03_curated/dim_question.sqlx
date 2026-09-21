@@ -25,7 +25,9 @@ WITH agg AS (
     a.format_id,
     a.meta,
     a.question_text,
-    TO_HEX(MD5(CONCAT(IFNULL(a.meta,''),'||',a.question_text))) AS question_key,
+    a.occurrence,
+    TO_HEX(MD5(CONCAT(IFNULL(a.meta,''),'||',a.question_text,'||',
+                      CAST(a.occurrence AS STRING)))) AS question_key,
     ANY_VALUE(a.type_code)       AS type_code,
     ANY_VALUE(a.tabulation_kind) AS tabulation_kind,
     ANY_VALUE(a.response_mode)   AS response_mode,
@@ -35,7 +37,7 @@ WITH agg AS (
     COUNT(DISTINCT a.respondent_id) AS n_respondents
   FROM ${ref("stg_answer")} AS a
   WHERE a.study_id IN (${BUILD_QUEUE})
-  GROUP BY 1, 2, 3, 4, 5
+  GROUP BY 1, 2, 3, 4, 5, 6
 ),
 
 -- Grid items: several question_texts sharing one meta (GFAN1 x 6 genres).
@@ -50,6 +52,7 @@ SELECT
   a.question_key,
   a.meta,
   a.question_text,
+  a.occurrence,
   IF(i.n_items > 1, a.question_text, NULL) AS item_text,
   i.n_items,
   a.type_code,

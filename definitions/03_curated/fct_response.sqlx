@@ -19,7 +19,8 @@ WITH a AS (
   FROM ${ref("stg_answer")} AS s
   JOIN ${ref("dim_question")} AS q
     ON q.study_id = s.study_id
-   AND q.question_key = TO_HEX(MD5(CONCAT(IFNULL(s.meta,''),'||',s.question_text)))
+   AND q.question_key = TO_HEX(MD5(CONCAT(IFNULL(s.meta,''),'||',s.question_text,'||',
+                                          CAST(s.occurrence AS STRING))))
   WHERE s.study_id IN (${BUILD_QUEUE})
 ),
 
@@ -32,7 +33,14 @@ selected AS (
     a.question_key, a.meta, a.question_text, a.item_text,
     a.tabulation_kind, a.response_mode, a.col_ordinal,
     ${PUNCH_CODE('piece')}  AS option_code,
-    ${PUNCH_LABEL('piece')} AS option_label
+    ${PUNCH_LABEL('piece')} AS option_label,
+    -- Some formats encode "position. scale_value - label", and the two can
+    -- run opposite (ABR: position 1 = scale 5). option_code is ALWAYS the
+    -- position, because position is a property of the questionnaire while
+    -- scale direction is a property of each question. Cuts and topbox_codes
+    -- are defined on position. This column records the underlying scale
+    -- point where the format supplies one, for reporting only.
+    CAST(REGEXP_EXTRACT(piece, r'^\d+\.\s*(\d+)\s+[–-]\s+') AS INT64) AS option_scale_value
   FROM a, UNNEST(SPLIT(IFNULL(a.selected_raw, ''), '|')) AS piece
   WHERE a.value_field = 'selected' AND TRIM(piece) != ''
 ),
@@ -45,7 +53,8 @@ rated AS (
     a.question_key, a.meta, a.question_text, a.item_text,
     a.tabulation_kind, a.response_mode, a.col_ordinal,
     ${PARSE_INT('a.rating_raw')} AS option_code,
-    IFNULL(rl.label, TRIM(a.rating_raw)) AS option_label
+    IFNULL(rl.label, TRIM(a.rating_raw)) AS option_label,
+    CAST(NULL AS INT64) AS option_scale_value
   FROM a
   LEFT JOIN ${CONFIG}.rating_label_map AS rl
     ON rl.format_id = a.format_id AND rl.meta = a.meta

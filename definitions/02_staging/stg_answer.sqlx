@@ -85,6 +85,10 @@ SELECT
   q.rating_raw,
   q.selected_raw,
   q.qual_raw,
+  ROW_NUMBER() OVER (
+    PARTITION BY q.study_id, x.respondent_id, q.meta, q.question_text
+    ORDER BY q.source_file, q.q_index
+  ) AS occurrence,
   -- The grid item. FF bakes it into the question text ("...the Action
   -- genre..."); there is no separate item field in the export. Derived
   -- here as the trailing distinguishing clause, and only used to

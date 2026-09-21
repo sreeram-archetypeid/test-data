@@ -80,13 +80,12 @@ d${k} AS (
   SELECT * FROM ${prev}
   UNION ALL
   SELECT c.study_id, c.cut_id, m.respondent_id
-  FROM defs AS c
+  FROM (SELECT *, ARRAY_LENGTH(child_cut_ids) AS n_children FROM defs) AS c
   CROSS JOIN UNNEST(c.child_cut_ids) AS child
   JOIN ${prev} AS m ON m.study_id = c.study_id AND m.cut_id = child
   WHERE c.rule_kind IN ('and','or')
-  GROUP BY c.study_id, c.cut_id, m.respondent_id, c.rule_kind, ARRAY_LENGTH(c.child_cut_ids)
-  HAVING c.rule_kind = 'or'
-      OR COUNT(DISTINCT child) = ARRAY_LENGTH(c.child_cut_ids)
+  GROUP BY c.study_id, c.cut_id, m.respondent_id, c.rule_kind, n_children
+  HAVING c.rule_kind = 'or' OR COUNT(DISTINCT child) = n_children
 ),`;
   }
   return sql;

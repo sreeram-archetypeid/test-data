@@ -29,7 +29,7 @@ col_ix AS (
   FROM cols WHERE n_col >= min_base
 ),
 
-width AS (SELECT study_id, MAX(col_ix) AS n_cols FROM col_ix GROUP BY 1),
+width AS (SELECT study_id, MAX(c.col_ix) AS n_cols FROM col_ix AS c GROUP BY 1),
 
 tables AS (
   SELECT study_id, question_key, meta, question_text, item_text, base_label,

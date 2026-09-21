@@ -15,7 +15,7 @@ pre_operations {
 }
 
 WITH a AS (
-  SELECT s.*, q.question_key, q.item_text, q.n_items
+  SELECT s.* EXCEPT (item_text), q.question_key, q.item_text, q.n_items
   FROM ${ref("stg_answer")} AS s
   JOIN ${ref("dim_question")} AS q
     ON q.study_id = s.study_id

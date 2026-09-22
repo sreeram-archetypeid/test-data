@@ -39,11 +39,23 @@ bases AS (
 
 -- Stub labels are read from the data, in punch order. No scale_stubs
 -- config, no per-question hand mapping.
+-- The same punch can carry different wording across cohort files
+-- (drop-003: "PC (Steam)" vs "PC (Steam, GOG Galaxy)"). The code is the
+-- identity; pick the most common wording as the printed label.
 stub_order AS (
-  SELECT study_id, question_key, option_code, option_label,
+  SELECT study_id, question_key, option_code,
+         option_label,
          option_code * 10 AS stub_sort
-  FROM rxc
-  GROUP BY 1, 2, 3, 4
+  FROM (
+    SELECT study_id, question_key, option_code, option_label,
+           ROW_NUMBER() OVER (
+             PARTITION BY study_id, question_key, option_code
+             ORDER BY COUNT(*) DESC, option_label
+           ) AS rn
+    FROM rxc
+    GROUP BY 1, 2, 3, 4
+  )
+  WHERE rn = 1
 ),
 
 option_counts AS (
@@ -55,7 +67,7 @@ option_counts AS (
     COUNT(DISTINCT r.respondent_id) AS n_stub
   FROM rxc AS r
   JOIN stub_order AS o
-    USING (study_id, question_key, option_code, option_label)
+    USING (study_id, question_key, option_code)
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
 ),
 

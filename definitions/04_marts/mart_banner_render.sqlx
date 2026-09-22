@@ -138,7 +138,7 @@ figures AS (
   FROM figure_cells AS f
   JOIN tables AS t
     ON t.study_id = f.study_id AND t.question_key = f.question_key
-  GROUP BY t.study_id, t.table_no, f.stub_sort, f.stub_label, f.stub_kind
+  GROUP BY t.study_id, t.table_no, f.stub_key, f.stub_sort, f.stub_label, f.stub_kind
 ),
 
 all_lines AS (

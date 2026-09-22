@@ -77,7 +77,7 @@ net_counts AS (
     r.study_id, r.question_key, r.column_id,
     CONCAT('net_', n.net_label) AS stub_key,
     'net' AS stub_kind,
-    n.net_label AS stub_label, n.net_sort AS stub_sort, FALSE AS indent,
+    n.net_label AS stub_label, 1000 + n.net_sort AS stub_sort, FALSE AS indent,
     COUNT(DISTINCT IF(r.option_code IN UNNEST(n.codes), r.respondent_id, NULL)) AS n_stub
   FROM rxc AS r
   JOIN ${CONFIG}.net_def AS n

@@ -116,8 +116,7 @@ figure_cells AS (
     g.study_id, g.question_key, g.stub_key, g.stub_kind,
     g.stub_sort, g.stub_label, g.col_ix,
     CASE
-      WHEN s.stub_key IS NULL THEN ''
-      WHEN g.stub_kind = 'base' THEN FORMAT('%d', s.n_stub)
+      WHEN g.stub_kind = 'base' THEN FORMAT('%d', IFNULL(s.n_stub, 0))
       ELSE FORMAT('%.2f%%', IFNULL(s.pct, 0) * 100)
     END AS txt
   FROM grid AS g

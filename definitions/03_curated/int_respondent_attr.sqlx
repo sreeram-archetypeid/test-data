@@ -60,9 +60,21 @@ canon AS (
 -- Age arrives mixed: '8', '25-44', '32-54', '9 years old'. Take the
 -- leading integer; anything with no integer at all is already logged in
 -- stg_cast_reject.
+-- Age arrives as either an exact value ("42") or a range ("25-44",
+-- "18-49"). Taking the first integer banded every range by its lower
+-- bound, which pushed wide ranges systematically young: "18-49" landed
+-- in 18-34 and "28-44" in 18-34. Use the midpoint of a range instead,
+-- and the exact value where there is one.
 age_num AS (
   SELECT study_id, format_id, respondent_id,
-         ${LEAD_INT('raw_value')} AS age_low
+    CASE
+      WHEN REGEXP_CONTAINS(TRIM(raw_value), r'^[0-9]+\s*[-–]\s*[0-9]+$')
+        THEN DIV(
+          CAST(REGEXP_EXTRACT(TRIM(raw_value), r'^([0-9]+)') AS INT64) +
+          CAST(REGEXP_EXTRACT(TRIM(raw_value), r'[-–]\s*([0-9]+)$') AS INT64), 2)
+      ELSE CAST(REGEXP_EXTRACT(TRIM(raw_value), r'([0-9]+)') AS INT64)
+    END AS age_low,
+    REGEXP_CONTAINS(TRIM(raw_value), r'^[0-9]+\s*[-–]\s*[0-9]+$') AS age_is_range
   FROM canon WHERE attr_name = 'age'
 ),
 

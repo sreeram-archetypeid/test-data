@@ -2,7 +2,7 @@ config {
   type: "incremental",
   schema: "banner",
   name: "stg_answer",
-  description: "One row per respondent x question index, with the seven Q-block fields pivoted back together. meta is a cell value, not a header token.",
+  description: "One row per respondent x question index, with the seven Q-block fields pivoted back together. Handles formats that encode the stimulus in the meta code and question text (monadic title tests).",
   uniqueKey: ["study_id","source_file","row_ix","q_index"],
   bigquery: { clusterBy: ["study_id","meta"] },
   tags: ["staging"]
@@ -15,7 +15,6 @@ pre_operations {
 }
 
 WITH
--- Respondent id is whichever persona column the format nominates.
 ids AS (
   SELECT c.study_id, c.source_file, c.row_ix, ANY_VALUE(c.cell_value) AS respondent_id
   FROM ${ref("stg_cell")} AS c
@@ -24,8 +23,6 @@ ids AS (
   GROUP BY 1, 2, 3
 ),
 
--- run_id and cell come from the filename or group_name, by config regex.
--- FF: run 2_1X / 2_2 / 2_3, cell G or S.  ABR: single run, monadic.
 grp AS (
   SELECT study_id, source_file, row_ix, ANY_VALUE(cell_value) AS group_name
   FROM ${ref("stg_cell")}
@@ -40,20 +37,19 @@ ctx AS (
     REGEXP_EXTRACT(
       IF(f.cell_source = 'group_name', g.group_name, i.source_file),
       f.cell_regex
-    ) AS cell_label
+    ) AS cell_label_from_file
   FROM ids AS i
   JOIN grp AS g USING (study_id, source_file, row_ix)
   JOIN ${CONFIG}.study_registry AS r ON r.study_id = i.study_id
   JOIN ${CONFIG}.format_registry AS f ON f.format_id = r.format_id
 ),
 
--- Pivot the seven Q-block fields back into one row per question.
 q AS (
   SELECT
     study_id, format_id, source_file, row_ix, q_index,
     MIN(col_ordinal) AS col_ordinal,
-    MAX(IF(q_field = 'question',     cell_value, NULL)) AS question_text,
-    MAX(IF(q_field = 'meta',         cell_value, NULL)) AS meta,
+    MAX(IF(q_field = 'question',     cell_value, NULL)) AS question_text_raw,
+    MAX(IF(q_field = 'meta',         cell_value, NULL)) AS meta_raw,
     MAX(IF(q_field = 'type',         cell_value, NULL)) AS type_code,
     MAX(IF(q_field = 'rating_label', cell_value, NULL)) AS rating_label,
     MAX(IF(q_field = 'rating',       cell_value, NULL)) AS rating_raw,
@@ -62,43 +58,84 @@ q AS (
   FROM ${ref("stg_cell")}
   WHERE block = 'question'
   GROUP BY 1, 2, 3, 4, 5
+),
+
+-- Some formats encode the stimulus in the question itself. A monadic
+-- title test gives each group a different title, and the title turns up
+-- in both the meta code and the question text:
+--
+--   HENDRICKS3_The Hendricks Code
+--   'The title of the movie is "The Hendricks Code" How does this...'
+--
+-- Left as-is, each group becomes a separate question, so eight groups
+-- give eight tables of a hundred-odd people each and nothing can be
+-- compared. Splitting the meta and normalising the text collapses them
+-- into one question, and the suffix becomes the exposure cell — which
+-- turns the stimulus into a banner column.
+qn AS (
+  SELECT
+    q.* EXCEPT (meta_raw, question_text_raw),
+    q.meta_raw,
+    q.question_text_raw,
+    IFNULL(REGEXP_EXTRACT(q.meta_raw, f.meta_suffix_regex), q.meta_raw) AS meta,
+    IF(REGEXP_EXTRACT(q.meta_raw, f.meta_suffix_regex) IS NULL,
+       CAST(NULL AS STRING),
+       REGEXP_REPLACE(q.meta_raw,
+         CONCAT('^', REGEXP_EXTRACT(q.meta_raw, f.meta_suffix_regex), '_'), ''))
+      AS meta_suffix,
+    IF(f.question_norm_pattern IS NULL,
+       q.question_text_raw,
+       REGEXP_REPLACE(q.question_text_raw, f.question_norm_pattern,
+                      IFNULL(f.question_norm_replace, ''))) AS question_text,
+    f.cell_source
+  FROM q
+  JOIN ${CONFIG}.format_registry AS f USING (format_id)
+),
+
+-- Each respondent sees exactly one stimulus, so their suffix is their cell.
+cell_from_meta AS (
+  SELECT study_id, source_file, row_ix, ANY_VALUE(meta_suffix) AS cell_label
+  FROM qn
+  WHERE meta_suffix IS NOT NULL
+  GROUP BY 1, 2, 3
 )
 
 SELECT
-  q.study_id,
-  q.format_id,
-  q.source_file,
+  qn.study_id,
+  qn.format_id,
+  qn.source_file,
   x.run_id,
-  x.cell_label,
+  IF(qn.cell_source = 'meta_suffix', cm.cell_label, x.cell_label_from_file) AS cell_label,
   x.respondent_id,
-  q.row_ix,
-  q.q_index,
-  q.col_ordinal,
-  q.meta,
-  q.question_text,
-  q.type_code,
+  qn.row_ix,
+  qn.q_index,
+  qn.col_ordinal,
+  qn.meta,
+  qn.meta_raw,
+  qn.meta_suffix,
+  qn.question_text,
+  qn.question_text_raw,
+  qn.type_code,
   t.tabulation_kind,
   t.response_mode,
   t.value_field,
   t.has_labels,
-  q.rating_label,
-  q.rating_raw,
-  q.selected_raw,
-  q.qual_raw,
+  qn.rating_label,
+  qn.rating_raw,
+  qn.selected_raw,
+  qn.qual_raw,
   ROW_NUMBER() OVER (
-    PARTITION BY q.study_id, x.respondent_id, q.meta, q.question_text
-    ORDER BY q.source_file, q.q_index
+    PARTITION BY qn.study_id, x.respondent_id, qn.meta, qn.question_text
+    ORDER BY qn.source_file, qn.q_index
   ) AS occurrence,
-  -- The grid item. FF bakes it into the question text ("...the Action
-  -- genre..."); there is no separate item field in the export. Derived
-  -- here as the trailing distinguishing clause, and only used to
-  -- disambiguate items sharing a meta.
-  IF(COUNT(*) OVER (PARTITION BY q.study_id, q.meta) >
-     COUNT(DISTINCT q.question_text) OVER (PARTITION BY q.study_id, q.meta),
-     NULL, q.question_text) AS item_text
-FROM q
+  IF(COUNT(*) OVER (PARTITION BY qn.study_id, qn.meta) >
+     COUNT(DISTINCT qn.question_text) OVER (PARTITION BY qn.study_id, qn.meta),
+     NULL, qn.question_text) AS item_text
+FROM qn
 JOIN ctx AS x
-  ON x.study_id = q.study_id AND x.source_file = q.source_file AND x.row_ix = q.row_ix
+  ON x.study_id = qn.study_id AND x.source_file = qn.source_file AND x.row_ix = qn.row_ix
+LEFT JOIN cell_from_meta AS cm
+  ON cm.study_id = qn.study_id AND cm.source_file = qn.source_file AND cm.row_ix = qn.row_ix
 LEFT JOIN ${CONFIG}.type_code_map AS t
-  ON t.format_id = q.format_id AND t.type_code = q.type_code
-WHERE q.meta IS NOT NULL
+  ON t.format_id = qn.format_id AND t.type_code = qn.type_code
+WHERE qn.meta IS NOT NULL
